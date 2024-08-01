@@ -15,12 +15,18 @@ router.get('/', async (req, res) => {
 
 // Create a new workout plan
 router.post('/', async (req, res) => {
-  const newWorkoutPlan = new WorkoutPlan(req.body);
+  console.log('Received workout plan:', req.body); // Log the received data
   try {
+    const { name, exercises } = req.body;
+    if (!name || !exercises || !Array.isArray(exercises)) {
+      return res.status(400).json({ message: 'Invalid workout plan data' });
+    }
+    const newWorkoutPlan = new WorkoutPlan({ name, exercises });
     const savedWorkoutPlan = await newWorkoutPlan.save();
     res.json(savedWorkoutPlan);
   } catch (err) {
-    res.status(400).json('Error: ' + err);
+    console.error('Error saving workout plan:', err);
+    res.status(400).json({ message: 'Error saving workout plan', error: err.message });
   }
 });
 
@@ -56,6 +62,7 @@ router.put('/:id', async (req, res) => {
 
 // Delete a workout plan
 router.delete('/:id', async (req, res) => {
+  console.log('Workout plan deleted successfully:', req.body); // Log the deleted data
   try {
     const deletedWorkoutPlan = await WorkoutPlan.findByIdAndDelete(req.params.id);
     if (!deletedWorkoutPlan) {
