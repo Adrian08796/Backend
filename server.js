@@ -19,11 +19,13 @@ mongoose.connect(process.env.MONGODB_URI)
 const exerciseRoutes = require('./routes/exercises');
 const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workoutPlans');
+const authRoutes = require('./routes/auth');
 
 // Use routes
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/workoutplans', workoutPlanRoutes);
+app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 4500;
 
