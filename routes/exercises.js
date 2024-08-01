@@ -2,6 +2,8 @@
 const router = require('express').Router();
 const Exercise = require('../models/Exercise');
 
+
+//Get all exercises
 router.get('/', async (req, res) => {
   try {
     const exercises = await Exercise.find();
@@ -11,6 +13,7 @@ router.get('/', async (req, res) => {
   }
 });
 
+//Get a new exercise
 router.post('/', async (req, res) => {
   const newExercise = new Exercise(req.body);
   try {
@@ -21,6 +24,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+//Get a specific exercise by ID
 router.get('/:id', async (req, res) => {
   try {
     const exercise = await Exercise.findById(req.params.id);
@@ -30,6 +34,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+//Update an exercise
 router.put('/:id', async (req, res) => {
   try {
     const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -39,6 +44,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+//Delete an exercise
 router.delete('/:id', async (req, res) => {
   try {
     await Exercise.findByIdAndDelete(req.params.id);
