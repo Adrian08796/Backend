@@ -16,6 +16,7 @@ mongoose.connect(process.env.MONGODB_URI)
 .catch(err => console.error('MongoDB connection error:', err));
 
 // Import routes
+const workoutsRouter = require('./routes/workouts');
 const exerciseRoutes = require('./routes/exercises');
 const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workoutPlans');
@@ -23,6 +24,7 @@ const authRoutes = require('./routes/auth');
 
 // Use routes
 app.use('/api/exercises', exerciseRoutes);
+app.use('/api/workouts', workoutsRouter);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/workoutplans', workoutPlanRoutes);
 app.use('/api/auth', authRoutes);
