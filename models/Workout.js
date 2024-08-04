@@ -1,3 +1,5 @@
+// models/Workout.js
+
 const mongoose = require('mongoose');
 
 const workoutSchema = new mongoose.Schema({
@@ -9,7 +11,7 @@ const workoutSchema = new mongoose.Schema({
   plan: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'WorkoutPlan',
-    required: true
+    required: false
   },
   exercises: [{
     exercise: {
@@ -32,6 +34,15 @@ const workoutSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+}, {
+  timestamps: true
 });
+
+workoutSchema.statics.handlePlanDeletion = async function(planId) {
+  return this.updateMany(
+    { plan: planId },
+    { $unset: { plan: "" } }
+  );
+};
 
 module.exports = mongoose.model('Workout', workoutSchema);
