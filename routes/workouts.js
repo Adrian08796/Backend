@@ -1,5 +1,3 @@
-// routes/workouts.js
-
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
@@ -24,10 +22,10 @@ router.get('/user', async (req, res) => {
 // Add a new workout
 router.post('/', async (req, res) => {
   try {
+    console.log('Received workout data:', req.body);
     const workout = new Workout({
       user: req.user,
-      plan: req.body.plan,
-      exercises: req.body.exercises
+      ...req.body
     });
     const newWorkout = await workout.save();
     const populatedWorkout = await Workout.findById(newWorkout._id)
@@ -35,6 +33,7 @@ router.post('/', async (req, res) => {
       .populate('exercises.exercise');
     res.status(201).json(populatedWorkout);
   } catch (error) {
+    console.error('Server error:', error);
     res.status(400).json({ message: 'Error creating workout', error: error.message });
   }
 });
@@ -78,6 +77,9 @@ async function getWorkout(req, res, next) {
       .populate('exercises.exercise');
     if (workout == null) {
       return res.status(404).json({ message: 'Workout not found' });
+    }
+    if (workout.user.toString() !== req.user) {
+      return res.status(403).json({ message: 'Not authorized to access this workout' });
     }
     res.workout = workout;
     next();
