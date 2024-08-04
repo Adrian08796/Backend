@@ -1,44 +1,51 @@
-// routes/workouts.js
-const router = require('express').Router();
+const express = require('express');
+const router = express.Router();
 const Workout = require('../models/Workout');
 
+// Get all workouts
 router.get('/', async (req, res) => {
   try {
-    const workouts = await Workout.find();
+    const workouts = await Workout.find().populate('plan').populate('exercises.exercise');
     res.json(workouts);
-  } catch (err) {
-    res.status(400).json('Error: ' + err);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
+// Add a new workout
 router.post('/', async (req, res) => {
-  const newWorkout = new Workout(req.body);
+  const workout = new Workout({
+    plan: req.body.plan,
+    exercises: req.body.exercises
+  });
+
   try {
-    const savedWorkout = await newWorkout.save();
-    res.json(savedWorkout);
-  } catch (err) {
-    res.status(400).json('Error: ' + err);
+    const newWorkout = await workout.save();
+    res.status(201).json(newWorkout);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 });
 
-router.put('/:id', async (req, res) => {
-  try {
-    const updatedWorkout = await Workout.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updatedWorkout);
-  } catch (err) {
-    res.status(400).json('Error: ' + err);
-  }
+// Get a specific workout
+router.get('/:id', getWorkout, (req, res) => {
+  res.json(res.workout);
 });
 
-router.delete('/:id', async (req, res) => {
+// Middleware function to get a workout by ID
+async function getWorkout(req, res, next) {
+  let workout;
   try {
-    await Workout.findByIdAndDelete(req.params.id);
-    res.json('Workout deleted.');
-  } catch (err) {
-    res.status(400).json('Error: ' + err);
+    workout = await Workout.findById(req.params.id).populate('plan').populate('exercises.exercise');
+    if (workout == null) {
+      return res.status(404).json({ message: 'Workout not found' });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
-});
 
-// Add routes for update and delete as needed
+  res.workout = workout;
+  next();
+}
 
 module.exports = router;
