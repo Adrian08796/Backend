@@ -39,8 +39,16 @@ router.post('/', async (req, res) => {
 });
 
 // Get a specific workout
-router.get('/:id', getWorkout, (req, res) => {
-  res.json(res.workout);
+router.get('/user', auth, async (req, res) => {
+  try {
+    const workouts = await Workout.find({ user: req.user })
+      .populate('plan')
+      .populate('exercises.exercise')
+      .sort({ date: -1 });
+    res.json(workouts);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching workouts', error: error.message });
+  }
 });
 
 // Update a workout
