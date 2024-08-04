@@ -1,9 +1,10 @@
+// routes/workouts.js
+
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
 const auth = require('../middleware/auth');
 
-// Apply auth middleware to all routes
 router.use(auth);
 
 // Get all workouts for the current user
@@ -23,9 +24,12 @@ router.get('/user', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     console.log('Received workout data:', req.body);
+    const { plan, planName, exercises } = req.body;
     const workout = new Workout({
       user: req.user,
-      ...req.body
+      plan,
+      planName,
+      exercises
     });
     const newWorkout = await workout.save();
     const populatedWorkout = await Workout.findById(newWorkout._id)
@@ -39,22 +43,17 @@ router.post('/', async (req, res) => {
 });
 
 // Get a specific workout
-router.get('/user', auth, async (req, res) => {
-  try {
-    const workouts = await Workout.find({ user: req.user })
-      .populate('plan')
-      .populate('exercises.exercise')
-      .sort({ date: -1 });
-    res.json(workouts);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching workouts', error: error.message });
-  }
+router.get('/:id', getWorkout, (req, res) => {
+  res.json(res.workout);
 });
 
 // Update a workout
 router.put('/:id', getWorkout, async (req, res) => {
   if (req.body.plan != null) {
     res.workout.plan = req.body.plan;
+  }
+  if (req.body.planName != null) {
+    res.workout.planName = req.body.planName;
   }
   if (req.body.exercises != null) {
     res.workout.exercises = req.body.exercises;
@@ -81,19 +80,18 @@ router.delete('/:id', getWorkout, async (req, res) => {
 async function getWorkout(req, res, next) {
   try {
     const workout = await Workout.findById(req.params.id)
-      .populate('plan')
-      .populate('exercises.exercise');
-    if (workout == null) {
-      return res.status(404).json({ message: 'Workout not found' });
+      .populate('plan').populate('exercises.exercise');
+      if (workout == null) {
+        return res.status(404).json({ message: 'Workout not found' });
+      }
+      if (workout.user.toString() !== req.user) {
+        return res.status(403).json({ message: 'Not authorized to access this workout' });
+      }
+      res.workout = workout;
+      next();
+    } catch (error) {
+      return res.status(500).json({ message: 'Error fetching workout', error: error.message });
     }
-    if (workout.user.toString() !== req.user) {
-      return res.status(403).json({ message: 'Not authorized to access this workout' });
-    }
-    res.workout = workout;
-    next();
-  } catch (error) {
-    return res.status(500).json({ message: 'Error fetching workout', error: error.message });
   }
-}
-
-module.exports = router;
+  
+  module.exports = router;

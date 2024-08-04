@@ -86,7 +86,7 @@ router.delete('/:id', async (req, res) => {
     console.log('Workout plan found:', workoutPlan);
 
     // Remove the plan reference from associated workouts
-    const updateResult = await Workout.handlePlanDeletion(req.params.id);
+    const updateResult = await Workout.handlePlanDeletion(req.params.id, workoutPlan.name);
     console.log('Update result for associated workouts:', updateResult);
 
     // Use deleteOne instead of remove

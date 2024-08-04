@@ -13,6 +13,14 @@ const workoutSchema = new mongoose.Schema({
     ref: 'WorkoutPlan',
     required: false
   },
+  planName: {
+    type: String,
+    required: true
+  },
+  planDeleted: {
+    type: Boolean,
+    default: false
+  },
   exercises: [{
     exercise: {
       type: mongoose.Schema.Types.ObjectId,
@@ -38,10 +46,13 @@ const workoutSchema = new mongoose.Schema({
   timestamps: true
 });
 
-workoutSchema.statics.handlePlanDeletion = async function(planId) {
+workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
   return this.updateMany(
     { plan: planId },
-    { $unset: { plan: "" } }
+    { 
+      $set: { planDeleted: true, planName: planName },
+      $unset: { plan: "" }
+    }
   );
 };
 
