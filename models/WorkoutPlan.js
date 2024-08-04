@@ -14,21 +14,9 @@ const WorkoutPlanSchema = new mongoose.Schema({
   exercises: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Exercise'
-  }],
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-// Update the 'updatedAt' field on save
-WorkoutPlanSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
+  }]
+}, {
+  timestamps: true // This will automatically add and manage createdAt and updatedAt fields
 });
 
 module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);
