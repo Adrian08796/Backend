@@ -1,29 +1,41 @@
+// routes/workouts.js
+
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
+const auth = require('../middleware/auth');
 
-// Get all workouts
-router.get('/', async (req, res) => {
+// Apply auth middleware to all routes
+router.use(auth);
+
+// Get all workouts for the current user
+router.get('/user', async (req, res) => {
   try {
-    const workouts = await Workout.find().populate('plan').populate('exercises.exercise');
+    const workouts = await Workout.find({ user: req.user })
+      .populate('plan')
+      .populate('exercises.exercise')
+      .sort({ date: -1 });
     res.json(workouts);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Error fetching workouts', error: error.message });
   }
 });
 
 // Add a new workout
 router.post('/', async (req, res) => {
-  const workout = new Workout({
-    plan: req.body.plan,
-    exercises: req.body.exercises
-  });
-
   try {
+    const workout = new Workout({
+      user: req.user,
+      plan: req.body.plan,
+      exercises: req.body.exercises
+    });
     const newWorkout = await workout.save();
-    res.status(201).json(newWorkout);
+    const populatedWorkout = await Workout.findById(newWorkout._id)
+      .populate('plan')
+      .populate('exercises.exercise');
+    res.status(201).json(populatedWorkout);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ message: 'Error creating workout', error: error.message });
   }
 });
 
@@ -32,20 +44,46 @@ router.get('/:id', getWorkout, (req, res) => {
   res.json(res.workout);
 });
 
+// Update a workout
+router.put('/:id', getWorkout, async (req, res) => {
+  if (req.body.plan != null) {
+    res.workout.plan = req.body.plan;
+  }
+  if (req.body.exercises != null) {
+    res.workout.exercises = req.body.exercises;
+  }
+  try {
+    const updatedWorkout = await res.workout.save();
+    res.json(updatedWorkout);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating workout', error: error.message });
+  }
+});
+
+// Delete a workout
+router.delete('/:id', getWorkout, async (req, res) => {
+  try {
+    await res.workout.remove();
+    res.json({ message: 'Workout deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting workout', error: error.message });
+  }
+});
+
 // Middleware function to get a workout by ID
 async function getWorkout(req, res, next) {
-  let workout;
   try {
-    workout = await Workout.findById(req.params.id).populate('plan').populate('exercises.exercise');
+    const workout = await Workout.findById(req.params.id)
+      .populate('plan')
+      .populate('exercises.exercise');
     if (workout == null) {
       return res.status(404).json({ message: 'Workout not found' });
     }
+    res.workout = workout;
+    next();
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: 'Error fetching workout', error: error.message });
   }
-
-  res.workout = workout;
-  next();
 }
 
 module.exports = router;
