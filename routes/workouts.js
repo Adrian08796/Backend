@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
 const auth = require('../middleware/auth');
+const CustomError = require('../utils/customError');
 
 router.use(auth);
 router.use((req, res, next) => {
@@ -13,7 +14,7 @@ router.use((req, res, next) => {
 });
 
 // Get all workouts for the current user
-router.get('/user', async (req, res) => {
+router.get('/user', async (req, res, next) => {
   try {
     const workouts = await Workout.find({ user: req.user })
       .populate('plan')
@@ -21,12 +22,12 @@ router.get('/user', async (req, res) => {
       .sort({ date: -1 });
     res.json(workouts);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching workouts', error: error.message });
+    next(new CustomError('Error fetching workouts', 500));
   }
 });
 
 // Add a new workout
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     console.log('Received workout data:', req.body);
     const { plan, planName, exercises } = req.body;
@@ -43,7 +44,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(populatedWorkout);
   } catch (error) {
     console.error('Server error:', error);
-    res.status(400).json({ message: 'Error creating workout', error: error.message });
+    next(new CustomError('Error creating workout', 400));
   }
 });
 
@@ -53,7 +54,7 @@ router.get('/:id', getWorkout, (req, res) => {
 });
 
 // Update a workout
-router.put('/:id', getWorkout, async (req, res) => {
+router.put('/:id', getWorkout, async (req, res, next) => {
   if (req.body.plan != null) {
     res.workout.plan = req.body.plan;
   }
@@ -67,17 +68,17 @@ router.put('/:id', getWorkout, async (req, res) => {
     const updatedWorkout = await res.workout.save();
     res.json(updatedWorkout);
   } catch (error) {
-    res.status(400).json({ message: 'Error updating workout', error: error.message });
+    next(new CustomError('Error updating workout', 400));
   }
 });
 
 // Delete a workout
-router.delete('/:id', getWorkout, async (req, res) => {
+router.delete('/:id', getWorkout, async (req, res, next) => {
   try {
     await res.workout.remove();
     res.json({ message: 'Workout deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error deleting workout', error: error.message });
+    next(new CustomError('Error deleting workout', 500));
   }
 });
 
@@ -86,17 +87,17 @@ async function getWorkout(req, res, next) {
   try {
     const workout = await Workout.findById(req.params.id)
       .populate('plan').populate('exercises.exercise');
-      if (workout == null) {
-        return res.status(404).json({ message: 'Workout not found' });
-      }
-      if (workout.user.toString() !== req.user) {
-        return res.status(403).json({ message: 'Not authorized to access this workout' });
-      }
-      res.workout = workout;
-      next();
-    } catch (error) {
-      return res.status(500).json({ message: 'Error fetching workout', error: error.message });
+    if (workout == null) {
+      return next(new CustomError('Workout not found', 404));
     }
+    if (workout.user.toString() !== req.user) {
+      return next(new CustomError('Not authorized to access this workout', 403));
+    }
+    res.workout = workout;
+    next();
+  } catch (error) {
+    next(new CustomError('Error fetching workout', 500));
   }
-  
-  module.exports = router;
+}
+
+module.exports = router;

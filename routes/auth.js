@@ -1,26 +1,25 @@
+// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
 
 // Registration
-router.post('/register', async (req, res) => {
+router.post('/register', async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
 
-    // Check if user already exists
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return next(new CustomError('User already exists', 400));
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create new user
     const user = new User({
       username,
       email,
@@ -31,47 +30,43 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error registering user' });
+    next(new CustomError('Error registering user', 500));
   }
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', async (req, res, next) => {
   try {
     const { username, password } = req.body;
 
-    // Check if user exists
     const user = await User.findOne({ username });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return next(new CustomError('Invalid credentials', 400));
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return next(new CustomError('Invalid credentials', 400));
     }
 
-    // Create and assign token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.json({ token, user: { id: user._id, username: user.username } });
+    res.json({ token, userId: user._id });
   } catch (error) {
-    res.status(500).json({ message: 'Error logging in' });
+    next(new CustomError('Error logging in', 500));
   }
 });
 
 // Get current user
-router.get('/user', auth, async (req, res) => {
+router.get('/user', auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user).select('-password');
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return next(new CustomError('User not found', 404));
     }
     res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: 'Server Error' });
+  } catch (error) {
+    next(new CustomError('Error fetching user', 500));
   }
 });
 
