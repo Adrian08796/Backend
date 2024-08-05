@@ -1,3 +1,5 @@
+// middleware/auth.js
+
 const jwt = require('jsonwebtoken');
 const CustomError = require('../utils/customError');
 

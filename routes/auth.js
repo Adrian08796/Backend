@@ -1,4 +1,5 @@
 // routes/auth.js
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -35,6 +36,7 @@ router.post('/register', async (req, res, next) => {
 });
 
 // Login
+// Login
 router.post('/login', async (req, res, next) => {
   try {
     const { username, password } = req.body;
@@ -51,7 +53,15 @@ router.post('/login', async (req, res, next) => {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.json({ token, userId: user._id });
+    res.json({ 
+      token, 
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email
+        // Add any other non-sensitive user data you need
+      }
+    });
   } catch (error) {
     next(new CustomError('Error logging in', 500));
   }
