@@ -1,3 +1,5 @@
+// controllers/workoutController.js
+
 const Workout = require('../models/Workout');
 
 exports.getUserWorkouts = async (req, res) => {
