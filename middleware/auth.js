@@ -6,7 +6,7 @@ module.exports = function(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.id;
+    req.user = decoded.id;  // Make sure this matches how you're setting the token payload
     next();
   } catch (error) {
     res.status(400).json({ message: 'Token is not valid' });

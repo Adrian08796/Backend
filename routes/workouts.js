@@ -6,6 +6,11 @@ const Workout = require('../models/Workout');
 const auth = require('../middleware/auth');
 
 router.use(auth);
+router.use((req, res, next) => {
+  console.log('Workout route accessed:', req.method, req.path);
+  console.log('User:', req.user);
+  next();
+});
 
 // Get all workouts for the current user
 router.get('/user', async (req, res) => {
