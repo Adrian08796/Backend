@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const WorkoutPlan = require('../models/WorkoutPlan');
-const Workout = require('../models/Workout');
+const Exercise = require('../models/Exercise');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 
@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
     const workoutPlans = await WorkoutPlan.find({ user: req.user })
       .populate({
         path: 'exercises',
-        select: 'name description target imageUrl' // Include all necessary fields
+        select: 'name description target imageUrl'
       });
     res.json(workoutPlans);
   } catch (err) {
@@ -25,7 +25,6 @@ router.get('/', async (req, res, next) => {
 
 // Create a new workout plan
 router.post('/', async (req, res, next) => {
-  console.log('Received workout plan:', req.body);
   try {
     const { name, exercises } = req.body;
     if (!name || !exercises || !Array.isArray(exercises)) {
@@ -60,9 +59,10 @@ router.get('/:id', async (req, res, next) => {
 // Update a workout plan
 router.put('/:id', async (req, res, next) => {
   try {
+    const { name, exercises } = req.body;
     const updatedWorkoutPlan = await WorkoutPlan.findOneAndUpdate(
       { _id: req.params.id, user: req.user },
-      req.body,
+      { name, exercises },
       { new: true, runValidators: true }
     ).populate('exercises');
     if (!updatedWorkoutPlan) {
@@ -74,30 +74,49 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-// Delete a workout plan
-router.delete('/:id', async (req, res, next) => {
+// Add an exercise to a workout plan
+router.post('/:id/exercises', async (req, res, next) => {
   try {
-    console.log('Attempting to delete workout plan:', req.params.id);
-    
+    console.log('Received request to add exercise to plan:', req.params.id, req.body);
+    const { exerciseId } = req.body;
+    if (!exerciseId) {
+      return next(new CustomError('Exercise ID is required', 400));
+    }
+
+    const exercise = await Exercise.findById(exerciseId);
+    if (!exercise) {
+      return next(new CustomError('Exercise not found', 404));
+    }
+
     const workoutPlan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user });
     if (!workoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
 
-    console.log('Workout plan found:', workoutPlan);
-
-    // Remove the plan reference from associated workouts
-    const updateResult = await Workout.handlePlanDeletion(req.params.id, workoutPlan.name);
-    console.log('Update result for associated workouts:', updateResult);
-
-    const deleteResult = await WorkoutPlan.deleteOne({ _id: req.params.id });
-    console.log('Delete result:', deleteResult);
-
-    if (deleteResult.deletedCount === 0) {
-      return next(new CustomError('Workout plan not found or already deleted', 404));
+    if (workoutPlan.exercises.includes(exerciseId)) {
+      return next(new CustomError('Exercise already in the workout plan', 400));
     }
 
-    res.json({ message: 'Workout plan deleted successfully', deleteResult });
+    workoutPlan.exercises.push(exerciseId);
+    await workoutPlan.save();
+
+    const updatedPlan = await WorkoutPlan.findById(workoutPlan._id).populate('exercises');
+    console.log('Successfully added exercise to plan:', updatedPlan);
+    res.json(updatedPlan);
+  } catch (err) {
+    console.error('Error adding exercise to workout plan:', err);
+    next(new CustomError('Error adding exercise to workout plan', 400));
+  }
+});
+
+// Delete a workout plan
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const workoutPlan = await WorkoutPlan.findOneAndDelete({ _id: req.params.id, user: req.user });
+    if (!workoutPlan) {
+      return next(new CustomError('Workout plan not found', 404));
+    }
+    res.json({ message: 'Workout plan deleted successfully' });
   } catch (err) {
     next(new CustomError('Error deleting workout plan', 500));
   }
