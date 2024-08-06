@@ -1,4 +1,5 @@
 // routes/exercises.js
+
 const router = require('express').Router();
 const Exercise = require('../models/Exercise');
 const CustomError = require('../utils/customError');
@@ -18,7 +19,13 @@ router.get('/', async (req, res, next) => {
 
 // Add a new exercise
 router.post('/', async (req, res, next) => {
-  const newExercise = new Exercise(req.body);
+  const { name, description, target, imageUrl } = req.body;
+  const newExercise = new Exercise({
+    name,
+    description,
+    target,
+    imageUrl: imageUrl || undefined
+  });
   try {
     const savedExercise = await newExercise.save();
     res.status(201).json(savedExercise);
