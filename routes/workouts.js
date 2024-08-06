@@ -17,11 +17,22 @@ router.use((req, res, next) => {
 router.get('/user', async (req, res, next) => {
   try {
     const workouts = await Workout.find({ user: req.user })
-      .populate('plan')
+      .populate({
+        path: 'plan',
+        select: 'name exercises', // Select the fields you need from the plan
+        populate: {
+          path: 'exercises',
+          select: 'name description target' // Select the fields you need from the exercises
+        }
+      })
       .populate('exercises.exercise')
-      .sort({ date: -1 });
+      .sort({ startTime: -1 }); // Sort by startTime instead of date
+
+    console.log('Fetched workouts:', JSON.stringify(workouts, null, 2));
+
     res.json(workouts);
   } catch (error) {
+    console.error('Error fetching workouts:', error);
     next(new CustomError('Error fetching workouts', 500));
   }
 });
@@ -29,22 +40,49 @@ router.get('/user', async (req, res, next) => {
 // Add a new workout
 router.post('/', async (req, res, next) => {
   try {
-    console.log('Received workout data:', req.body);
-    const { plan, planName, exercises } = req.body;
+    console.log('Received workout data:', JSON.stringify(req.body, null, 2));
+    const { plan, planName, exercises, startTime, endTime } = req.body;
+    
+    if (!planName || !exercises || !startTime || !endTime) {
+      return next(new CustomError('Missing required fields', 400));
+    }
+
+    if (!Array.isArray(exercises) || exercises.length === 0) {
+      return next(new CustomError('Invalid exercises data', 400));
+    }
+
     const workout = new Workout({
       user: req.user,
-      plan,
+      plan: plan, // Make sure this is the plan ID
       planName,
-      exercises
+      exercises: exercises.map(exercise => ({
+        exercise: exercise.exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          completedAt: new Date(set.completedAt)
+        })),
+        completedAt: new Date(exercise.completedAt)
+      })),
+      startTime: new Date(startTime),
+      endTime: new Date(endTime)
     });
+
+    console.log('New workout object:', JSON.stringify(workout, null, 2));
+
     const newWorkout = await workout.save();
+    console.log('Saved workout:', JSON.stringify(newWorkout, null, 2));
+
     const populatedWorkout = await Workout.findById(newWorkout._id)
       .populate('plan')
       .populate('exercises.exercise');
     res.status(201).json(populatedWorkout);
   } catch (error) {
     console.error('Server error:', error);
-    next(new CustomError('Error creating workout', 400));
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return next(new CustomError('Validation error', 400, validationErrors));
+    }
+    next(new CustomError('Error creating workout', 500));
   }
 });
 
@@ -64,6 +102,12 @@ router.put('/:id', getWorkout, async (req, res, next) => {
   if (req.body.exercises != null) {
     res.workout.exercises = req.body.exercises;
   }
+  if (req.body.startTime != null) {
+    res.workout.startTime = new Date(req.body.startTime);
+  }
+  if (req.body.endTime != null) {
+    res.workout.endTime = new Date(req.body.endTime);
+  }
   try {
     const updatedWorkout = await res.workout.save();
     res.json(updatedWorkout);
@@ -75,7 +119,7 @@ router.put('/:id', getWorkout, async (req, res, next) => {
 // Delete a workout
 router.delete('/:id', getWorkout, async (req, res, next) => {
   try {
-    await res.workout.remove();
+    await res.workout.deleteOne();
     res.json({ message: 'Workout deleted successfully' });
   } catch (error) {
     next(new CustomError('Error deleting workout', 500));

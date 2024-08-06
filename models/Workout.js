@@ -1,3 +1,5 @@
+// models/Workout.js
+
 const mongoose = require('mongoose');
 
 const workoutSchema = new mongoose.Schema({
@@ -15,10 +17,6 @@ const workoutSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  planDeleted: {
-    type: Boolean,
-    default: false
-  },
   exercises: [{
     exercise: {
       type: mongoose.Schema.Types.ObjectId,
@@ -33,12 +31,24 @@ const workoutSchema = new mongoose.Schema({
       reps: {
         type: Number,
         required: true
+      },
+      completedAt: {
+        type: Date,
+        required: true
       }
-    }]
+    }],
+    completedAt: {
+      type: Date,
+      required: true
+    }
   }],
-  date: {
+  startTime: {
     type: Date,
-    default: Date.now
+    required: true
+  },
+  endTime: {
+    type: Date,
+    required: true
   }
 }, {
   timestamps: true
