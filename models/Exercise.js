@@ -19,6 +19,10 @@ const ExerciseSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Target muscle group is required'],
     trim: true
+  },
+  imageUrl: {
+    type: String,
+    default: 'https://www.inspireusafoundation.org/wp-content/uploads/2023/03/barbell-bench-press-side-view.gif'
   }
 }, {
   timestamps: true
