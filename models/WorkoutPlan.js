@@ -1,3 +1,5 @@
+// models/WorkoutPlan.js
+
 const mongoose = require('mongoose');
 
 const WorkoutPlanSchema = new mongoose.Schema({
@@ -14,9 +16,17 @@ const WorkoutPlanSchema = new mongoose.Schema({
   exercises: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Exercise'
-  }]
+  }],
+  scheduledDate: {
+    type: Date
+  },
+  type: {
+    type: String,
+    enum: ['strength', 'cardio', 'flexibility', 'other'],
+    default: 'other'
+  }
 }, {
-  timestamps: true // This will automatically add and manage createdAt and updatedAt fields
+  timestamps: true
 });
 
 module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);
