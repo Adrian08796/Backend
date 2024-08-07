@@ -46,7 +46,6 @@ bower_components/
 .stylelintcache
 
 # dotenv environment variables file
-
 .env.test
 .env.development
 .env.production

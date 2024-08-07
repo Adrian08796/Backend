@@ -16,9 +16,14 @@ const ExerciseSchema = new mongoose.Schema({
     maxlength: [500, 'Description cannot be more than 500 characters']
   },
   target: {
-    type: String,
-    required: [true, 'Target muscle group is required'],
-    trim: true
+    type: [String],
+    required: [true, 'Target muscle groups are required'],
+    validate: {
+      validator: function(v) {
+        return v.length > 0;
+      },
+      message: 'At least one target muscle group must be specified'
+    }
   },
   imageUrl: {
     type: String,
