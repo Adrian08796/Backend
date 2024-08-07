@@ -26,14 +26,16 @@ router.get('/', async (req, res, next) => {
 // Create a new workout plan
 router.post('/', async (req, res, next) => {
   try {
-    const { name, exercises } = req.body;
+    const { name, exercises, scheduledDate, type } = req.body;
     if (!name || !exercises || !Array.isArray(exercises)) {
       return next(new CustomError('Invalid workout plan data', 400));
     }
     const newWorkoutPlan = new WorkoutPlan({ 
       user: req.user,
       name, 
-      exercises 
+      exercises,
+      scheduledDate,
+      type
     });
     const savedWorkoutPlan = await newWorkoutPlan.save();
     const populatedPlan = await WorkoutPlan.findById(savedWorkoutPlan._id).populate('exercises');
@@ -43,26 +45,13 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// Get a specific workout plan by ID
-router.get('/:id', async (req, res, next) => {
-  try {
-    const workoutPlan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user }).populate('exercises');
-    if (!workoutPlan) {
-      return next(new CustomError('Workout plan not found', 404));
-    }
-    res.json(workoutPlan);
-  } catch (err) {
-    next(new CustomError('Error fetching workout plan', 500));
-  }
-});
-
 // Update a workout plan
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, exercises } = req.body;
+    const { name, exercises, scheduledDate, type } = req.body;
     const updatedWorkoutPlan = await WorkoutPlan.findOneAndUpdate(
       { _id: req.params.id, user: req.user },
-      { name, exercises },
+      { name, exercises, scheduledDate, type },
       { new: true, runValidators: true }
     ).populate('exercises');
     if (!updatedWorkoutPlan) {
