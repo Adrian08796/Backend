@@ -17,10 +17,10 @@ const ExerciseSchema = new mongoose.Schema({
   },
   target: {
     type: [String],
-    required: [true, 'Target muscle groups are required'],
+    required: [true, 'Target muscle group is required'],
     validate: {
       validator: function(v) {
-        return v.length > 0;
+        return Array.isArray(v) && v.length > 0;
       },
       message: 'At least one target muscle group must be specified'
     }
