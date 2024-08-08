@@ -23,7 +23,7 @@ router.post('/', async (req, res, next) => {
   const newExercise = new Exercise({
     name,
     description,
-    target,
+    target: Array.isArray(target) ? target : [target], // Ensure target is always an array
     imageUrl: imageUrl || undefined
   });
   try {
@@ -50,6 +50,10 @@ router.get('/:id', async (req, res, next) => {
 // Update an exercise
 router.put('/:id', async (req, res, next) => {
   try {
+    const { target } = req.body;
+    if (target && !Array.isArray(target)) {
+      req.body.target = [target]; // Convert to array if it's not already
+    }
     const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updatedExercise) {
       return next(new CustomError('Exercise not found', 404));
