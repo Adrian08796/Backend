@@ -329,7 +329,7 @@ router.post('/', async (req, res, next) => {
 
     const workout = new Workout({
       user: req.user,
-      plan: plan, // Make sure this is the plan ID
+      plan,
       planName,
       exercises: exercises.map(exercise => ({
         exercise: exercise.exercise,
@@ -337,7 +337,8 @@ router.post('/', async (req, res, next) => {
           ...set,
           completedAt: new Date(set.completedAt)
         })),
-        completedAt: new Date(exercise.completedAt)
+        completedAt: new Date(exercise.completedAt),
+        notes: exercise.notes
       })),
       startTime: new Date(startTime),
       endTime: new Date(endTime)
@@ -359,6 +360,27 @@ router.post('/', async (req, res, next) => {
       return next(new CustomError('Validation error', 400, validationErrors));
     }
     next(new CustomError('Error creating workout', 500));
+  }
+});
+
+// Get the last workout for a specific plan
+router.get('/last/:planId', async (req, res, next) => {
+  try {
+    const workout = await Workout.findOne({ 
+      user: req.user, 
+      plan: req.params.planId 
+    })
+    .sort({ startTime: -1 })
+    .populate('plan')
+    .populate('exercises.exercise');
+
+    if (!workout) {
+      return res.status(404).json({ message: 'No workouts found for this plan' });
+    }
+
+    res.json(workout);
+  } catch (error) {
+    next(new CustomError('Error fetching last workout', 500));
   }
 });
 
@@ -570,7 +592,7 @@ router.post('/', async (req, res, next) => {
   const newExercise = new Exercise({
     name,
     description,
-    target,
+    target: Array.isArray(target) ? target : [target], // Ensure target is always an array
     imageUrl: imageUrl || undefined
   });
   try {
@@ -597,6 +619,10 @@ router.get('/:id', async (req, res, next) => {
 // Update an exercise
 router.put('/:id', async (req, res, next) => {
   try {
+    const { target } = req.body;
+    if (target && !Array.isArray(target)) {
+      req.body.target = [target]; // Convert to array if it's not already
+    }
     const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updatedExercise) {
       return next(new CustomError('Exercise not found', 404));
@@ -711,30 +737,6 @@ router.get('/user', auth, async (req, res, next) => {
 module.exports = router;
 ```
 
-# middleware/auth.js
-
-```js
-// middleware/auth.js
-
-const jwt = require('jsonwebtoken');
-const CustomError = require('../utils/customError');
-
-module.exports = function(req, res, next) {
-  const token = req.header('x-auth-token');
-  if (!token) {
-    return next(new CustomError('No token, authorization denied', 401));
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.id;
-    next();
-  } catch (error) {
-    next(new CustomError('Token is not valid', 401));
-  }
-};
-```
-
 # models/WorkoutPlan.js
 
 ```js
@@ -817,6 +819,10 @@ const workoutSchema = new mongoose.Schema({
     completedAt: {
       type: Date,
       required: true
+    },
+    notes: {
+      type: String,
+      default: ''
     }
   }],
   startTime: {
@@ -879,9 +885,14 @@ const ExerciseSchema = new mongoose.Schema({
     maxlength: [500, 'Description cannot be more than 500 characters']
   },
   target: {
-    type: String,
+    type: [String],
     required: [true, 'Target muscle group is required'],
-    trim: true
+    validate: {
+      validator: function(v) {
+        return Array.isArray(v) && v.length > 0;
+      },
+      message: 'At least one target muscle group must be specified'
+    }
   },
   imageUrl: {
     type: String,
@@ -892,6 +903,30 @@ const ExerciseSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Exercise', ExerciseSchema);
+```
+
+# middleware/auth.js
+
+```js
+// middleware/auth.js
+
+const jwt = require('jsonwebtoken');
+const CustomError = require('../utils/customError');
+
+module.exports = function(req, res, next) {
+  const token = req.header('x-auth-token');
+  if (!token) {
+    return next(new CustomError('No token, authorization denied', 401));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded.id;
+    next();
+  } catch (error) {
+    next(new CustomError('Token is not valid', 401));
+  }
+};
 ```
 
 # controllers/workoutController.js
