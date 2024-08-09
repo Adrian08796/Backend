@@ -40,6 +40,10 @@ const workoutSchema = new mongoose.Schema({
     completedAt: {
       type: Date,
       required: true
+    },
+    notes: {
+      type: String,
+      default: ''
     }
   }],
   startTime: {
