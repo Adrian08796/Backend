@@ -7,11 +7,6 @@ const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 
 router.use(auth);
-router.use((req, res, next) => {
-  console.log('Workout route accessed:', req.method, req.path);
-  console.log('User:', req.user);
-  next();
-});
 
 // Get all workouts for the current user
 router.get('/user', async (req, res, next) => {
@@ -19,20 +14,17 @@ router.get('/user', async (req, res, next) => {
     const workouts = await Workout.find({ user: req.user })
       .populate({
         path: 'plan',
-        select: 'name exercises', // Select the fields you need from the plan
+        select: 'name exercises',
         populate: {
           path: 'exercises',
-          select: 'name description target' // Select the fields you need from the exercises
+          select: 'name description target'
         }
       })
       .populate('exercises.exercise')
-      .sort({ startTime: -1 }); // Sort by startTime instead of date
-
-    console.log('Fetched workouts:', JSON.stringify(workouts, null, 2));
+      .sort({ startTime: -1 });
 
     res.json(workouts);
   } catch (error) {
-    console.error('Error fetching workouts:', error);
     next(new CustomError('Error fetching workouts', 500));
   }
 });
@@ -40,8 +32,7 @@ router.get('/user', async (req, res, next) => {
 // Add a new workout
 router.post('/', async (req, res, next) => {
   try {
-    console.log('Received workout data:', JSON.stringify(req.body, null, 2));
-    const { plan, planName, exercises, startTime, endTime } = req.body;
+    const { plan, planName, exercises, startTime, endTime, totalPauseTime, skippedPauses, progression } = req.body;
     
     if (!planName || !exercises || !startTime || !endTime) {
       return next(new CustomError('Missing required fields', 400));
@@ -65,20 +56,18 @@ router.post('/', async (req, res, next) => {
         notes: exercise.notes
       })),
       startTime: new Date(startTime),
-      endTime: new Date(endTime)
+      endTime: new Date(endTime),
+      totalPauseTime,
+      skippedPauses,
+      progression
     });
 
-    console.log('New workout object:', JSON.stringify(workout, null, 2));
-
     const newWorkout = await workout.save();
-    console.log('Saved workout:', JSON.stringify(newWorkout, null, 2));
-
     const populatedWorkout = await Workout.findById(newWorkout._id)
       .populate('plan')
       .populate('exercises.exercise');
     res.status(201).json(populatedWorkout);
   } catch (error) {
-    console.error('Server error:', error);
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
       return next(new CustomError('Validation error', 400, validationErrors));
@@ -115,21 +104,17 @@ router.get('/:id', getWorkout, (req, res) => {
 
 // Update a workout
 router.put('/:id', getWorkout, async (req, res, next) => {
-  if (req.body.plan != null) {
-    res.workout.plan = req.body.plan;
-  }
-  if (req.body.planName != null) {
-    res.workout.planName = req.body.planName;
-  }
-  if (req.body.exercises != null) {
-    res.workout.exercises = req.body.exercises;
-  }
-  if (req.body.startTime != null) {
-    res.workout.startTime = new Date(req.body.startTime);
-  }
-  if (req.body.endTime != null) {
-    res.workout.endTime = new Date(req.body.endTime);
-  }
+  const { plan, planName, exercises, startTime, endTime, totalPauseTime, skippedPauses, progression } = req.body;
+
+  if (plan != null) res.workout.plan = plan;
+  if (planName != null) res.workout.planName = planName;
+  if (exercises != null) res.workout.exercises = exercises;
+  if (startTime != null) res.workout.startTime = new Date(startTime);
+  if (endTime != null) res.workout.endTime = new Date(endTime);
+  if (totalPauseTime != null) res.workout.totalPauseTime = totalPauseTime;
+  if (skippedPauses != null) res.workout.skippedPauses = skippedPauses;
+  if (progression != null) res.workout.progression = progression;
+
   try {
     const updatedWorkout = await res.workout.save();
     res.json(updatedWorkout);

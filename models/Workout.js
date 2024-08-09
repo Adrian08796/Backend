@@ -35,6 +35,10 @@ const workoutSchema = new mongoose.Schema({
       completedAt: {
         type: Date,
         required: true
+      },
+      skippedRest: {
+        type: Boolean,
+        default: false
       }
     }],
     completedAt: {
@@ -53,6 +57,18 @@ const workoutSchema = new mongoose.Schema({
   endTime: {
     type: Date,
     required: true
+  },
+  totalPauseTime: {
+    type: Number,
+    default: 0
+  },
+  skippedPauses: {
+    type: Number,
+    default: 0
+  },
+  progression: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true
