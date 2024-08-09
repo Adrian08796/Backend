@@ -53,7 +53,7 @@ router.post('/', async (req, res, next) => {
 
     const workout = new Workout({
       user: req.user,
-      plan: plan, // Make sure this is the plan ID
+      plan,
       planName,
       exercises: exercises.map(exercise => ({
         exercise: exercise.exercise,
@@ -61,7 +61,8 @@ router.post('/', async (req, res, next) => {
           ...set,
           completedAt: new Date(set.completedAt)
         })),
-        completedAt: new Date(exercise.completedAt)
+        completedAt: new Date(exercise.completedAt),
+        notes: exercise.notes
       })),
       startTime: new Date(startTime),
       endTime: new Date(endTime)
@@ -83,6 +84,27 @@ router.post('/', async (req, res, next) => {
       return next(new CustomError('Validation error', 400, validationErrors));
     }
     next(new CustomError('Error creating workout', 500));
+  }
+});
+
+// Get the last workout for a specific plan
+router.get('/last/:planId', async (req, res, next) => {
+  try {
+    const workout = await Workout.findOne({ 
+      user: req.user, 
+      plan: req.params.planId 
+    })
+    .sort({ startTime: -1 })
+    .populate('plan')
+    .populate('exercises.exercise');
+
+    if (!workout) {
+      return res.status(404).json({ message: 'No workouts found for this plan' });
+    }
+
+    res.json(workout);
+  } catch (error) {
+    next(new CustomError('Error fetching last workout', 500));
   }
 });
 
