@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
+const WorkoutPlan = require('../models/WorkoutPlan');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 
@@ -79,13 +80,28 @@ router.post('/', async (req, res, next) => {
 // Get the last workout for a specific plan
 router.get('/last/:planId', async (req, res, next) => {
   try {
-    const workout = await Workout.findOne({ 
+    let workout = await Workout.findOne({ 
       user: req.user, 
       plan: req.params.planId 
     })
     .sort({ startTime: -1 })
     .populate('plan')
     .populate('exercises.exercise');
+
+    if (!workout) {
+      // If no workout found for the plan ID, fetch the plan to get exercise IDs
+      const plan = await WorkoutPlan.findById(req.params.planId);
+      if (plan) {
+        // Search for workouts with matching exercise IDs
+        workout = await Workout.findOne({
+          user: req.user,
+          'exercises.exercise': { $in: plan.exercises }
+        })
+        .sort({ startTime: -1 })
+        .populate('plan')
+        .populate('exercises.exercise');
+      }
+    }
 
     if (!workout) {
       return res.status(404).json({ message: 'No workouts found for this plan' });
