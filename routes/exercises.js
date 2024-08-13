@@ -19,12 +19,13 @@ router.get('/', async (req, res, next) => {
 
 // Add a new exercise
 router.post('/', async (req, res, next) => {
-  const { name, description, target, imageUrl } = req.body;
+  const { name, description, target, imageUrl, category } = req.body;
   const newExercise = new Exercise({
     name,
     description,
-    target: Array.isArray(target) ? target : [target], // Ensure target is always an array
-    imageUrl: imageUrl || undefined
+    target: Array.isArray(target) ? target : [target],
+    imageUrl: imageUrl || undefined,
+    category
   });
   try {
     const savedExercise = await newExercise.save();
@@ -50,11 +51,11 @@ router.get('/:id', async (req, res, next) => {
 // Update an exercise
 router.put('/:id', async (req, res, next) => {
   try {
-    const { target } = req.body;
+    const { target, category } = req.body;
     if (target && !Array.isArray(target)) {
-      req.body.target = [target]; // Convert to array if it's not already
+      req.body.target = [target];
     }
-    const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!updatedExercise) {
       return next(new CustomError('Exercise not found', 404));
     }

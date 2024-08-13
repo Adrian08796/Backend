@@ -1,5 +1,7 @@
 // models/Exercise.js
 
+// models/Exercise.js
+
 const mongoose = require('mongoose');
 
 const ExerciseSchema = new mongoose.Schema({
@@ -28,6 +30,12 @@ const ExerciseSchema = new mongoose.Schema({
   imageUrl: {
     type: String,
     default: 'https://www.inspireusafoundation.org/wp-content/uploads/2023/03/barbell-bench-press-side-view.gif'
+  },
+  category: {
+    type: String,
+    required: [true, 'Exercise category is required'],
+    enum: ['Strength', 'Cardio', 'Flexibility'],
+    default: 'Strength'
   }
 }, {
   timestamps: true
