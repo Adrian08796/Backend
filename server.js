@@ -3,6 +3,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const http = require('http');
+const https = require('https');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -41,4 +44,36 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4500;
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Check if we're in production mode
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction) {
+  // Production: Use HTTPS
+  try {
+    const privateKey = fs.readFileSync('/path/to/privkey.pem', 'utf8');
+    const certificate = fs.readFileSync('/path/to/cert.pem', 'utf8');
+    const ca = fs.readFileSync('/path/to/chain.pem', 'utf8');
+
+    const credentials = {
+      key: privateKey,
+      cert: certificate,
+      ca: ca
+    };
+
+    const httpsServer = https.createServer(credentials, app);
+
+    httpsServer.listen(PORT, () => {
+      console.log(`HTTPS Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start HTTPS server:', error);
+    process.exit(1);
+  }
+} else {
+  // Development: Use HTTP
+  const httpServer = http.createServer(app);
+
+  httpServer.listen(PORT, () => {
+    console.log(`HTTP Server running on port ${PORT}`);
+  });
+}
