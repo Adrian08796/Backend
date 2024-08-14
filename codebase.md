@@ -44,7 +44,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4500;
 
-app.listen(PORT, '192.168.178.42', () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 ```
 
 # package.json
@@ -279,6 +279,7 @@ class CustomError extends Error {
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
+const WorkoutPlan = require('../models/WorkoutPlan');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 
@@ -355,13 +356,28 @@ router.post('/', async (req, res, next) => {
 // Get the last workout for a specific plan
 router.get('/last/:planId', async (req, res, next) => {
   try {
-    const workout = await Workout.findOne({ 
+    let workout = await Workout.findOne({ 
       user: req.user, 
       plan: req.params.planId 
     })
     .sort({ startTime: -1 })
     .populate('plan')
     .populate('exercises.exercise');
+
+    if (!workout) {
+      // If no workout found for the plan ID, fetch the plan to get exercise IDs
+      const plan = await WorkoutPlan.findById(req.params.planId);
+      if (plan) {
+        // Search for workouts with matching exercise IDs
+        workout = await Workout.findOne({
+          user: req.user,
+          'exercises.exercise': { $in: plan.exercises }
+        })
+        .sort({ startTime: -1 })
+        .populate('plan')
+        .populate('exercises.exercise');
+      }
+    }
 
     if (!workout) {
       return res.status(404).json({ message: 'No workouts found for this plan' });
@@ -573,12 +589,13 @@ router.get('/', async (req, res, next) => {
 
 // Add a new exercise
 router.post('/', async (req, res, next) => {
-  const { name, description, target, imageUrl } = req.body;
+  const { name, description, target, imageUrl, category } = req.body;
   const newExercise = new Exercise({
     name,
     description,
-    target: Array.isArray(target) ? target : [target], // Ensure target is always an array
-    imageUrl: imageUrl || undefined
+    target: Array.isArray(target) ? target : [target],
+    imageUrl: imageUrl || undefined,
+    category
   });
   try {
     const savedExercise = await newExercise.save();
@@ -604,11 +621,11 @@ router.get('/:id', async (req, res, next) => {
 // Update an exercise
 router.put('/:id', async (req, res, next) => {
   try {
-    const { target } = req.body;
+    const { target, category } = req.body;
     if (target && !Array.isArray(target)) {
-      req.body.target = [target]; // Convert to array if it's not already
+      req.body.target = [target];
     }
-    const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!updatedExercise) {
       return next(new CustomError('Exercise not found', 404));
     }
@@ -720,6 +737,30 @@ router.get('/user', auth, async (req, res, next) => {
 });
 
 module.exports = router;
+```
+
+# middleware/auth.js
+
+```js
+// middleware/auth.js
+
+const jwt = require('jsonwebtoken');
+const CustomError = require('../utils/customError');
+
+module.exports = function(req, res, next) {
+  const token = req.header('x-auth-token');
+  if (!token) {
+    return next(new CustomError('No token, authorization denied', 401));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded.id;
+    next();
+  } catch (error) {
+    next(new CustomError('Token is not valid', 401));
+  }
+};
 ```
 
 # models/WorkoutPlan.js
@@ -870,6 +911,8 @@ module.exports = mongoose.model('User', UserSchema);
 ```js
 // models/Exercise.js
 
+// models/Exercise.js
+
 const mongoose = require('mongoose');
 
 const ExerciseSchema = new mongoose.Schema({
@@ -898,36 +941,18 @@ const ExerciseSchema = new mongoose.Schema({
   imageUrl: {
     type: String,
     default: 'https://www.inspireusafoundation.org/wp-content/uploads/2023/03/barbell-bench-press-side-view.gif'
+  },
+  category: {
+    type: String,
+    required: [true, 'Exercise category is required'],
+    enum: ['Strength', 'Cardio', 'Flexibility'],
+    default: 'Strength'
   }
 }, {
   timestamps: true
 });
 
 module.exports = mongoose.model('Exercise', ExerciseSchema);
-```
-
-# middleware/auth.js
-
-```js
-// middleware/auth.js
-
-const jwt = require('jsonwebtoken');
-const CustomError = require('../utils/customError');
-
-module.exports = function(req, res, next) {
-  const token = req.header('x-auth-token');
-  if (!token) {
-    return next(new CustomError('No token, authorization denied', 401));
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.id;
-    next();
-  } catch (error) {
-    next(new CustomError('Token is not valid', 401));
-  }
-};
 ```
 
 # controllers/workoutController.js
