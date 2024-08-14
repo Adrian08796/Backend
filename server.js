@@ -44,6 +44,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4500;
 
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
 // Function to start HTTP server
 const startHttpServer = () => {
   const httpServer = http.createServer(app);
