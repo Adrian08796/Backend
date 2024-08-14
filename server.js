@@ -44,15 +44,20 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4500;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
 // Function to start HTTP server
-const startHttpServer = () => {
-  const httpServer = http.createServer(app);
-  httpServer.listen(PORT, () => {
-    console.log(`HTTP Server running on port ${PORT}`);
+const startHttpServer = (port) => {
+  const server = http.createServer(app);
+  server.listen(port, () => {
+    console.log(`HTTP Server running on port ${port}`);
+  });
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is already in use. Trying port ${port + 1}...`);
+      startHttpServer(port + 1);
+    } else {
+      console.error('Error starting server:', error);
+    }
   });
 };
 
@@ -77,11 +82,20 @@ if (isProduction) {
     httpsServer.listen(PORT, () => {
       console.log(`HTTPS Server running on port ${PORT}`);
     });
+
+    httpsServer.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.log(`Port ${PORT} is already in use. Falling back to HTTP...`);
+        startHttpServer(PORT);
+      } else {
+        console.error('Error starting HTTPS server:', error);
+      }
+    });
   } catch (error) {
     console.warn('SSL certificates not found, falling back to HTTP');
-    startHttpServer();
+    startHttpServer(PORT);
   }
 } else {
   // Development: Use HTTP
-  startHttpServer();
+  startHttpServer(PORT);
 }
