@@ -44,11 +44,19 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4500;
 
+// Function to start HTTP server
+const startHttpServer = () => {
+  const httpServer = http.createServer(app);
+  httpServer.listen(PORT, () => {
+    console.log(`HTTP Server running on port ${PORT}`);
+  });
+};
+
 // Check if we're in production mode
 const isProduction = process.env.NODE_ENV === 'production';
 
 if (isProduction) {
-  // Production: Use HTTPS
+  // Production: Attempt to use HTTPS, fallback to HTTP if certificates are not found
   try {
     const privateKey = fs.readFileSync('/path/to/privkey.pem', 'utf8');
     const certificate = fs.readFileSync('/path/to/cert.pem', 'utf8');
@@ -66,14 +74,10 @@ if (isProduction) {
       console.log(`HTTPS Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Failed to start HTTPS server:', error);
-    process.exit(1);
+    console.warn('SSL certificates not found, falling back to HTTP');
+    startHttpServer();
   }
 } else {
   // Development: Use HTTP
-  const httpServer = http.createServer(app);
-
-  httpServer.listen(PORT, () => {
-    console.log(`HTTP Server running on port ${PORT}`);
-  });
+  startHttpServer();
 }
