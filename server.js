@@ -13,7 +13,7 @@ const app = express();
 // Middleware
 
 app.use(cors({
-  origin: 'http://192.168.178.42:3000', // or whatever URL your frontend is running on
+  origin: 'https://walrus-app-lqhsg.ondigitalocean.app/', // or whatever URL your frontend is running on
   credentials: true
 }));
 app.use(express.json());
