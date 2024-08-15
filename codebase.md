@@ -328,6 +328,333 @@ class CustomError extends Error {
   module.exports = CustomError;
 ```
 
+# models/WorkoutPlan.js
+
+```js
+// models/WorkoutPlan.js
+
+const mongoose = require('mongoose');
+
+const WorkoutPlanSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  name: { 
+    type: String, 
+    required: true,
+    trim: true
+  },
+  exercises: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Exercise'
+  }],
+  scheduledDate: {
+    type: Date
+  },
+  type: {
+    type: String,
+    enum: ['strength', 'cardio', 'flexibility', 'other'],
+    default: 'other'
+  }
+}, {
+  timestamps: true
+});
+
+module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);
+```
+
+# models/Workout.js
+
+```js
+// models/Workout.js
+
+const mongoose = require('mongoose');
+
+const workoutSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  plan: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'WorkoutPlan',
+    required: false
+  },
+  planName: {
+    type: String,
+    required: true
+  },
+  exercises: [{
+    exercise: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Exercise',
+      required: true
+    },
+    sets: [{
+      weight: {
+        type: Number,
+        required: true
+      },
+      reps: {
+        type: Number,
+        required: true
+      },
+      completedAt: {
+        type: Date,
+        required: true
+      },
+      skippedRest: {
+        type: Boolean,
+        default: false
+      }
+    }],
+    completedAt: {
+      type: Date,
+      required: true
+    },
+    notes: {
+      type: String,
+      default: ''
+    }
+  }],
+  startTime: {
+    type: Date,
+    required: true
+  },
+  endTime: {
+    type: Date,
+    required: true
+  },
+  totalPauseTime: {
+    type: Number,
+    default: 0
+  },
+  skippedPauses: {
+    type: Number,
+    default: 0
+  },
+  progression: {
+    type: Number,
+    default: 0
+  }
+}, {
+  timestamps: true
+});
+
+workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
+  return this.updateMany(
+    { plan: planId },
+    { 
+      $set: { planDeleted: true, planName: planName },
+      $unset: { plan: "" }
+    }
+  );
+};
+
+module.exports = mongoose.model('Workout', workoutSchema);
+```
+
+# models/User.js
+
+```js
+const mongoose = require('mongoose');
+
+const UserSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true }
+});
+
+module.exports = mongoose.model('User', UserSchema);
+```
+
+# models/Exercise.js
+
+```js
+// models/Exercise.js
+
+// models/Exercise.js
+
+const mongoose = require('mongoose');
+
+const ExerciseSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Exercise name is required'],
+    trim: true,
+    maxlength: [50, 'Name cannot be more than 50 characters']
+  },
+  description: {
+    type: String,
+    required: [true, 'Exercise description is required'],
+    trim: true,
+    maxlength: [500, 'Description cannot be more than 500 characters']
+  },
+  target: {
+    type: [String],
+    required: [true, 'Target muscle group is required'],
+    validate: {
+      validator: function(v) {
+        return Array.isArray(v) && v.length > 0;
+      },
+      message: 'At least one target muscle group must be specified'
+    }
+  },
+  imageUrl: {
+    type: String,
+    default: 'https://www.inspireusafoundation.org/wp-content/uploads/2023/03/barbell-bench-press-side-view.gif'
+  },
+  category: {
+    type: String,
+    required: [true, 'Exercise category is required'],
+    enum: ['Strength', 'Cardio', 'Flexibility'],
+    default: 'Strength'
+  }
+}, {
+  timestamps: true
+});
+
+module.exports = mongoose.model('Exercise', ExerciseSchema);
+```
+
+# middleware/auth.js
+
+```js
+// middleware/auth.js
+
+const jwt = require('jsonwebtoken');
+const CustomError = require('../utils/customError');
+
+module.exports = function(req, res, next) {
+  const token = req.header('x-auth-token');
+  if (!token) {
+    return next(new CustomError('No token, authorization denied', 401));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded.id;
+    next();
+  } catch (error) {
+    next(new CustomError('Token is not valid', 401));
+  }
+};
+```
+
+# controllers/workoutController.js
+
+```js
+// controllers/workoutController.js
+
+const Workout = require('../models/Workout');
+
+exports.createWorkout = async (req, res) => {
+  try {
+    console.log('Received workout data:', JSON.stringify(req.body, null, 2));
+    const { plan, planName, exercises, startTime, endTime } = req.body;
+    
+    if (!planName || !exercises || !startTime || !endTime) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    if (!Array.isArray(exercises) || exercises.length === 0) {
+      return res.status(400).json({ message: 'Invalid exercises data' });
+    }
+
+    const newWorkout = new Workout({
+      user: req.user.id,
+      plan,
+      planName,
+      exercises: exercises.map(exercise => ({
+        exercise: exercise.exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          completedAt: new Date(set.completedAt)
+        })),
+        completedAt: new Date(exercise.completedAt)
+      })),
+      startTime: new Date(startTime),
+      endTime: new Date(endTime)
+    });
+
+    console.log('New workout object:', JSON.stringify(newWorkout, null, 2));
+
+    const savedWorkout = await newWorkout.save();
+    console.log('Saved workout:', JSON.stringify(savedWorkout, null, 2));
+
+    const populatedWorkout = await Workout.findById(savedWorkout._id)
+      .populate('plan')
+      .populate('exercises.exercise');
+
+    res.status(201).json(populatedWorkout);
+  } catch (error) {
+    console.error('Error creating workout:', error);
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ message: 'Validation error', errors: validationErrors });
+    }
+    res.status(500).json({ message: 'Error creating workout', error: error.message });
+  }
+};
+
+exports.getUserWorkouts = async (req, res) => {
+  try {
+    const workouts = await Workout.find({ user: req.user.id })
+      .populate('plan')
+      .populate('exercises.exercise')
+      .sort({ date: -1 });
+    res.json(workouts);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching workouts', error: error.message });
+  }
+};
+
+exports.getWorkout = async (req, res) => {
+  try {
+    const workout = await Workout.findById(req.params.id)
+      .populate('plan')
+      .populate('exercises.exercise');
+    if (!workout) {
+      return res.status(404).json({ message: 'Workout not found' });
+    }
+    res.json(workout);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching workout', error: error.message });
+  }
+};
+
+exports.updateWorkout = async (req, res) => {
+  try {
+    const updatedWorkout = await Workout.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('plan').populate('exercises.exercise');
+    if (!updatedWorkout) {
+      return res.status(404).json({ message: 'Workout not found' });
+    }
+    res.json(updatedWorkout);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating workout', error: error.message });
+  }
+};
+
+exports.deleteWorkout = async (req, res) => {
+  try {
+    const workout = await Workout.findByIdAndDelete(req.params.id);
+    if (!workout) {
+      return res.status(404).json({ message: 'Workout not found' });
+    }
+    res.json({ message: 'Workout deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting workout', error: error.message });
+  }
+};
+```
+
 # routes/workouts.js
 
 ```js
@@ -713,6 +1040,8 @@ module.exports = router;
 ```js
 // routes/auth.js
 
+// routes/auth.js
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -724,10 +1053,12 @@ const auth = require('../middleware/auth');
 // Registration
 router.post('/register', async (req, res, next) => {
   try {
+    console.log('Received registration request:', req.body);
     const { username, email, password } = req.body;
 
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
+      console.log('User already exists:', existingUser.username);
       return next(new CustomError('User already exists', 400));
     }
 
@@ -741,30 +1072,35 @@ router.post('/register', async (req, res, next) => {
     });
 
     await user.save();
+    console.log('User created successfully:', user.username);
 
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
+    console.error('Error registering user:', error);
     next(new CustomError('Error registering user', 500));
   }
 });
 
 // Login
-// Login
 router.post('/login', async (req, res, next) => {
   try {
+    console.log('Received login request:', req.body);
     const { username, password } = req.body;
 
     const user = await User.findOne({ username });
     if (!user) {
+      console.log('Invalid credentials: User not found');
       return next(new CustomError('Invalid credentials', 400));
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Invalid credentials: Password does not match');
       return next(new CustomError('Invalid credentials', 400));
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log('Login successful for user:', user.username);
 
     res.json({ 
       token, 
@@ -772,10 +1108,10 @@ router.post('/login', async (req, res, next) => {
         id: user._id,
         username: user.username,
         email: user.email
-        // Add any other non-sensitive user data you need
       }
     });
   } catch (error) {
+    console.error('Error logging in:', error);
     next(new CustomError('Error logging in', 500));
   }
 });
@@ -783,344 +1119,21 @@ router.post('/login', async (req, res, next) => {
 // Get current user
 router.get('/user', auth, async (req, res, next) => {
   try {
+    console.log('Fetching user data for user ID:', req.user);
     const user = await User.findById(req.user).select('-password');
     if (!user) {
+      console.log('User not found for ID:', req.user);
       return next(new CustomError('User not found', 404));
     }
+    console.log('User data fetched successfully:', user.username);
     res.json(user);
   } catch (error) {
+    console.error('Error fetching user:', error);
     next(new CustomError('Error fetching user', 500));
   }
 });
 
 module.exports = router;
-```
-
-# middleware/auth.js
-
-```js
-// middleware/auth.js
-
-const jwt = require('jsonwebtoken');
-const CustomError = require('../utils/customError');
-
-module.exports = function(req, res, next) {
-  const token = req.header('x-auth-token');
-  if (!token) {
-    return next(new CustomError('No token, authorization denied', 401));
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.id;
-    next();
-  } catch (error) {
-    next(new CustomError('Token is not valid', 401));
-  }
-};
-```
-
-# controllers/workoutController.js
-
-```js
-// controllers/workoutController.js
-
-const Workout = require('../models/Workout');
-
-exports.createWorkout = async (req, res) => {
-  try {
-    console.log('Received workout data:', JSON.stringify(req.body, null, 2));
-    const { plan, planName, exercises, startTime, endTime } = req.body;
-    
-    if (!planName || !exercises || !startTime || !endTime) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-
-    if (!Array.isArray(exercises) || exercises.length === 0) {
-      return res.status(400).json({ message: 'Invalid exercises data' });
-    }
-
-    const newWorkout = new Workout({
-      user: req.user.id,
-      plan,
-      planName,
-      exercises: exercises.map(exercise => ({
-        exercise: exercise.exercise,
-        sets: exercise.sets.map(set => ({
-          ...set,
-          completedAt: new Date(set.completedAt)
-        })),
-        completedAt: new Date(exercise.completedAt)
-      })),
-      startTime: new Date(startTime),
-      endTime: new Date(endTime)
-    });
-
-    console.log('New workout object:', JSON.stringify(newWorkout, null, 2));
-
-    const savedWorkout = await newWorkout.save();
-    console.log('Saved workout:', JSON.stringify(savedWorkout, null, 2));
-
-    const populatedWorkout = await Workout.findById(savedWorkout._id)
-      .populate('plan')
-      .populate('exercises.exercise');
-
-    res.status(201).json(populatedWorkout);
-  } catch (error) {
-    console.error('Error creating workout:', error);
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ message: 'Validation error', errors: validationErrors });
-    }
-    res.status(500).json({ message: 'Error creating workout', error: error.message });
-  }
-};
-
-exports.getUserWorkouts = async (req, res) => {
-  try {
-    const workouts = await Workout.find({ user: req.user.id })
-      .populate('plan')
-      .populate('exercises.exercise')
-      .sort({ date: -1 });
-    res.json(workouts);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching workouts', error: error.message });
-  }
-};
-
-exports.getWorkout = async (req, res) => {
-  try {
-    const workout = await Workout.findById(req.params.id)
-      .populate('plan')
-      .populate('exercises.exercise');
-    if (!workout) {
-      return res.status(404).json({ message: 'Workout not found' });
-    }
-    res.json(workout);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching workout', error: error.message });
-  }
-};
-
-exports.updateWorkout = async (req, res) => {
-  try {
-    const updatedWorkout = await Workout.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    ).populate('plan').populate('exercises.exercise');
-    if (!updatedWorkout) {
-      return res.status(404).json({ message: 'Workout not found' });
-    }
-    res.json(updatedWorkout);
-  } catch (error) {
-    res.status(400).json({ message: 'Error updating workout', error: error.message });
-  }
-};
-
-exports.deleteWorkout = async (req, res) => {
-  try {
-    const workout = await Workout.findByIdAndDelete(req.params.id);
-    if (!workout) {
-      return res.status(404).json({ message: 'Workout not found' });
-    }
-    res.json({ message: 'Workout deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting workout', error: error.message });
-  }
-};
-```
-
-# models/WorkoutPlan.js
-
-```js
-// models/WorkoutPlan.js
-
-const mongoose = require('mongoose');
-
-const WorkoutPlanSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  name: { 
-    type: String, 
-    required: true,
-    trim: true
-  },
-  exercises: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Exercise'
-  }],
-  scheduledDate: {
-    type: Date
-  },
-  type: {
-    type: String,
-    enum: ['strength', 'cardio', 'flexibility', 'other'],
-    default: 'other'
-  }
-}, {
-  timestamps: true
-});
-
-module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);
-```
-
-# models/Workout.js
-
-```js
-// models/Workout.js
-
-const mongoose = require('mongoose');
-
-const workoutSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  plan: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'WorkoutPlan',
-    required: false
-  },
-  planName: {
-    type: String,
-    required: true
-  },
-  exercises: [{
-    exercise: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Exercise',
-      required: true
-    },
-    sets: [{
-      weight: {
-        type: Number,
-        required: true
-      },
-      reps: {
-        type: Number,
-        required: true
-      },
-      completedAt: {
-        type: Date,
-        required: true
-      },
-      skippedRest: {
-        type: Boolean,
-        default: false
-      }
-    }],
-    completedAt: {
-      type: Date,
-      required: true
-    },
-    notes: {
-      type: String,
-      default: ''
-    }
-  }],
-  startTime: {
-    type: Date,
-    required: true
-  },
-  endTime: {
-    type: Date,
-    required: true
-  },
-  totalPauseTime: {
-    type: Number,
-    default: 0
-  },
-  skippedPauses: {
-    type: Number,
-    default: 0
-  },
-  progression: {
-    type: Number,
-    default: 0
-  }
-}, {
-  timestamps: true
-});
-
-workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
-  return this.updateMany(
-    { plan: planId },
-    { 
-      $set: { planDeleted: true, planName: planName },
-      $unset: { plan: "" }
-    }
-  );
-};
-
-module.exports = mongoose.model('Workout', workoutSchema);
-```
-
-# models/User.js
-
-```js
-const mongoose = require('mongoose');
-
-const UserSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
-});
-
-module.exports = mongoose.model('User', UserSchema);
-```
-
-# models/Exercise.js
-
-```js
-// models/Exercise.js
-
-// models/Exercise.js
-
-const mongoose = require('mongoose');
-
-const ExerciseSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Exercise name is required'],
-    trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
-  },
-  description: {
-    type: String,
-    required: [true, 'Exercise description is required'],
-    trim: true,
-    maxlength: [500, 'Description cannot be more than 500 characters']
-  },
-  target: {
-    type: [String],
-    required: [true, 'Target muscle group is required'],
-    validate: {
-      validator: function(v) {
-        return Array.isArray(v) && v.length > 0;
-      },
-      message: 'At least one target muscle group must be specified'
-    }
-  },
-  imageUrl: {
-    type: String,
-    default: 'https://www.inspireusafoundation.org/wp-content/uploads/2023/03/barbell-bench-press-side-view.gif'
-  },
-  category: {
-    type: String,
-    required: [true, 'Exercise category is required'],
-    enum: ['Strength', 'Cardio', 'Flexibility'],
-    default: 'Strength'
-  }
-}, {
-  timestamps: true
-});
-
-module.exports = mongoose.model('Exercise', ExerciseSchema);
 ```
 
 # assets/images/Cable Flye.webp
