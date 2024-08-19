@@ -5,18 +5,20 @@
 
 const express = require('express');
 const mongoose = require('mongoose');
+const app = express();
 const cors = require('cors');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 require('dotenv').config();
 
-const app = express();
+
 
 // Middleware
 
 app.use(cors({
-  origin: 'http://localhost:5173', // or whatever URL your frontend is running on
+  origin: 'https://walrus-app-lqhsg.ondigitalocean.app',
+  // origin: 'http://192.168.178.42:3000', // or whatever URL your frontend is running on
   credentials: true
 }));
 app.use(express.json());
@@ -813,6 +815,30 @@ router.get('/user', auth, async (req, res, next) => {
 module.exports = router;
 ```
 
+# middleware/auth.js
+
+```js
+// middleware/auth.js
+
+const jwt = require('jsonwebtoken');
+const CustomError = require('../utils/customError');
+
+module.exports = function(req, res, next) {
+  const token = req.header('x-auth-token');
+  if (!token) {
+    return next(new CustomError('No token, authorization denied', 401));
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded.id;
+    next();
+  } catch (error) {
+    next(new CustomError('Token is not valid', 401));
+  }
+};
+```
+
 # models/WorkoutPlan.js
 
 ```js
@@ -1003,30 +1029,6 @@ const ExerciseSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Exercise', ExerciseSchema);
-```
-
-# middleware/auth.js
-
-```js
-// middleware/auth.js
-
-const jwt = require('jsonwebtoken');
-const CustomError = require('../utils/customError');
-
-module.exports = function(req, res, next) {
-  const token = req.header('x-auth-token');
-  if (!token) {
-    return next(new CustomError('No token, authorization denied', 401));
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.id;
-    next();
-  } catch (error) {
-    next(new CustomError('Token is not valid', 401));
-  }
-};
 ```
 
 # controllers/workoutController.js
