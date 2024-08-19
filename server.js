@@ -48,7 +48,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 4500;
 
 // Function to start HTTP server
 const startHttpServer = (port) => {
