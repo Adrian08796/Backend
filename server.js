@@ -14,7 +14,7 @@ require('dotenv').config();
 // Middleware
 
 app.use(cors({
-  origin: 'https://walrus-app-lqhsg.ondigitalocean.app:8080',
+  origin: 'https://walrus-app-lqhsg.ondigitalocean.app',
   // origin: 'http://192.168.178.42:3000', // or whatever URL your frontend is running on
   credentials: true
 }));
@@ -48,7 +48,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 4500;
+const PORT = process.env.PORT || 8080;
 
 // Function to start HTTP server
 const startHttpServer = (port) => {
