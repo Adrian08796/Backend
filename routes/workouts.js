@@ -138,6 +138,16 @@ router.post('/progress', async (req, res, next) => {
   }
 });
 
+// Clear progress
+router.delete('/progress', async (req, res, next) => {
+  try {
+    await WorkoutProgress.findOneAndDelete({ user: req.user });
+    res.json({ message: 'Progress cleared successfully' });
+  } catch (error) {
+    next(new CustomError('Error clearing progress', 500));
+  }
+});
+
 // Get active plan (progress)
 router.get('/progress', async (req, res, next) => {
   try {
