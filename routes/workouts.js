@@ -91,11 +91,13 @@ router.get('/last/:planId', async (req, res, next) => {
     .populate('exercises.exercise');
 
     if (!workout) {
+      console.log('No workout found for plan ID:', req.params.planId);
       return res.status(404).json({ message: 'No workouts found for this plan' });
     }
 
     res.json(workout);
   } catch (error) {
+    console.error('Error fetching last workout:', error);
     next(new CustomError('Error fetching last workout', 500));
   }
 });
