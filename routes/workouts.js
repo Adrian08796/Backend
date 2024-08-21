@@ -150,23 +150,7 @@ router.delete('/:id', getWorkout, async (req, res, next) => {
   }
 });
 
-// Middleware function to get a workout by ID
-async function getWorkout(req, res, next) {
-  try {
-    const workout = await Workout.findById(req.params.id)
-      .populate('plan').populate('exercises.exercise');
-    if (workout == null) {
-      return next(new CustomError('Workout not found', 404));
-    }
-    if (workout.user.toString() !== req.user) {
-      return next(new CustomError('Not authorized to access this workout', 403));
-    }
-    res.workout = workout;
-    next();
-  } catch (error) {
-    next(new CustomError('Error fetching workout', 500));
-  }
-}
+
 
 // Save progress
 router.post('/progress', async (req, res, next) => {
