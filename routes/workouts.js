@@ -139,7 +139,7 @@ router.post('/progress', async (req, res, next) => {
 });
 
 // Get active plan (progress)
-router.get('/active-plan', async (req, res, next) => {
+router.get('/progress', async (req, res, next) => {
   try {
     const progress = await WorkoutProgress.findOne({ user: req.user });
     
@@ -152,6 +152,35 @@ router.get('/active-plan', async (req, res, next) => {
     next(new CustomError('Error fetching active plan', 500));
   }
 });
+
+// Middleware function to get a workout by ID
+async function getWorkout(req, res, next) {
+  try {
+    console.log('Fetching workout with ID:', req.params.id);
+    console.log('Authenticated user:', req.user);
+
+    const workout = await Workout.findById(req.params.id)
+      .populate('plan').populate('exercises.exercise');
+    
+    console.log('Fetched workout:', workout);
+
+    if (!workout) {
+      console.log('Workout not found');
+      return next(new CustomError('Workout not found', 404));
+    }
+    
+    if (workout.user.toString() !== req.user) {
+      console.log('User not authorized. Workout user:', workout.user, 'Request user:', req.user);
+      return next(new CustomError('Not authorized to access this workout', 403));
+    }
+    
+    res.workout = workout;
+    next();
+  } catch (error) {
+    console.error('Error in getWorkout:', error);
+    next(new CustomError('Error fetching workout', 500));
+  }
+}
 
 // Get a specific workout
 router.get('/:id', getWorkout, (req, res) => {
@@ -188,34 +217,5 @@ router.delete('/:id', getWorkout, async (req, res, next) => {
     next(new CustomError('Error deleting workout', 500));
   }
 });
-
-// Middleware function to get a workout by ID
-async function getWorkout(req, res, next) {
-  try {
-    console.log('Fetching workout with ID:', req.params.id);
-    console.log('Authenticated user:', req.user);
-
-    const workout = await Workout.findById(req.params.id)
-      .populate('plan').populate('exercises.exercise');
-    
-    console.log('Fetched workout:', workout);
-
-    if (!workout) {
-      console.log('Workout not found');
-      return next(new CustomError('Workout not found', 404));
-    }
-    
-    if (workout.user.toString() !== req.user) {
-      console.log('User not authorized. Workout user:', workout.user, 'Request user:', req.user);
-      return next(new CustomError('Not authorized to access this workout', 403));
-    }
-    
-    res.workout = workout;
-    next();
-  } catch (error) {
-    console.error('Error in getWorkout:', error);
-    next(new CustomError('Error fetching workout', 500));
-  }
-}
 
 module.exports = router;
