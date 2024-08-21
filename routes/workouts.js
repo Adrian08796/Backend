@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
 const WorkoutPlan = require('../models/WorkoutPlan');
+const WorkoutProgress = require('../models/WorkoutProgress');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 
@@ -166,5 +167,44 @@ async function getWorkout(req, res, next) {
     next(new CustomError('Error fetching workout', 500));
   }
 }
+
+// Save progress
+router.post('/progress', async (req, res, next) => {
+  try {
+    const progressData = req.body;
+    
+    let progress = await WorkoutProgress.findOne({ user: req.user });
+    if (progress) {
+      progress.data = progressData;
+      progress.lastUpdated = new Date();
+    } else {
+      progress = new WorkoutProgress({
+        user: req.user,
+        data: progressData,
+        lastUpdated: new Date(),
+      });
+    }
+    await progress.save();
+
+    res.json({ message: 'Progress saved successfully' });
+  } catch (error) {
+    next(new CustomError('Error saving progress', 500));
+  }
+});
+
+// Get active plan (progress)
+router.get('/active-plan', async (req, res, next) => {
+  try {
+    const progress = await WorkoutProgress.findOne({ user: req.user });
+    
+    if (progress) {
+      res.json(progress.data);
+    } else {
+      res.json(null);
+    }
+  } catch (error) {
+    next(new CustomError('Error fetching active plan', 500));
+  }
+});
 
 module.exports = router;
