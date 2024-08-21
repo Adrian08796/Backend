@@ -1,7 +1,8 @@
-// models/Workout.js
+// /workspace/models/Workout.js
+
 const mongoose = require('mongoose');
 
-const WorkoutSchema = new mongoose.Schema({
+const workoutSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -73,6 +74,7 @@ const WorkoutSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Now you can add static methods to the schema
 workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
   return this.updateMany(
     { plan: planId },
@@ -83,4 +85,4 @@ workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
   );
 };
 
-module.exports = mongoose.model('Workout', WorkoutSchema);
+module.exports = mongoose.model('Workout', workoutSchema);
