@@ -102,6 +102,32 @@ router.get('/last/:planId', async (req, res, next) => {
   }
 });
 
+//Get exercise history
+router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
+  try {
+    const { exerciseId } = req.params;
+    const workouts = await Workout.find({ 
+      user: req.user,
+      'exercises.exercise': exerciseId
+    })
+    .sort({ startTime: -1 })
+    .limit(5); // Limit to the last 5 workouts for performance, adjust as needed
+
+    const exerciseHistory = workouts.map(workout => {
+      const exerciseData = workout.exercises.find(e => e.exercise.toString() === exerciseId);
+      return {
+        date: workout.startTime,
+        sets: exerciseData.sets,
+        notes: exerciseData.notes
+      };
+    });
+
+    res.json(exerciseHistory);
+  } catch (error) {
+    next(new CustomError('Error fetching exercise history', 500));
+  }
+});
+
 // Save progress
 router.post('/progress', async (req, res, next) => {
   try {
