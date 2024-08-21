@@ -1,8 +1,7 @@
 // models/Workout.js
-
 const mongoose = require('mongoose');
 
-const workoutSchema = new mongoose.Schema({
+const WorkoutSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -84,4 +83,4 @@ workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
   );
 };
 
-module.exports = mongoose.model('Workout', workoutSchema);
+module.exports = mongoose.model('Workout', WorkoutSchema);
