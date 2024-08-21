@@ -127,12 +127,12 @@ router.post('/progress', async (req, res, next) => {
 });
 
 // Clear progress
-router.delete('/progress', async (req, res, next) => {
+router.delete('/progress', auth, async (req, res, next) => {
   try {
     await WorkoutProgress.findOneAndDelete({ user: req.user });
-    res.json({ message: 'Progress cleared successfully' });
+    res.json({ message: 'Workout progress cleared successfully' });
   } catch (error) {
-    next(new CustomError('Error clearing progress', 500));
+    next(new CustomError('Error clearing workout progress', 500));
   }
 });
 
