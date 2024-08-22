@@ -97,8 +97,8 @@ router.get('/last/:planId', async (req, res, next) => {
   }
 });
 
-//Get exercise history
-router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
+// Get exercise history
+router.get('/exercise-history/:exerciseId', async (req, res, next) => {
   try {
     const { exerciseId } = req.params;
     const workouts = await Workout.find({ 
@@ -106,7 +106,7 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
       'exercises.exercise': exerciseId
     })
     .sort({ startTime: -1 })
-    .limit(5); // Limit to the last 5 workouts for performance, adjust as needed
+    .limit(5);
 
     const exerciseHistory = workouts.map(workout => {
       const exerciseData = workout.exercises.find(e => e.exercise.toString() === exerciseId);
@@ -124,36 +124,43 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
 });
 
 // Save progress
-router.post('/progress', auth, async (req, res, next) => {
+router.post('/progress', async (req, res, next) => {
   try {
-    const { plan, exercise, set, sets, notes, currentExerciseIndex, lastSetValues, startTime } = req.body;
+    const { plan, exercises, currentExerciseIndex, lastSetValues, startTime, totalPauseTime, skippedPauses } = req.body;
     
     let progress = await WorkoutProgress.findOne({ user: req.user, plan });
     if (progress) {
       // Update existing progress
-      progress.startTime = startTime || progress.startTime; // Use existing startTime if not provided
-      // ... rest of the update logic ...
+      progress.exercises = exercises;
+      progress.currentExerciseIndex = currentExerciseIndex;
+      progress.lastSetValues = lastSetValues;
+      progress.startTime = startTime || progress.startTime;
+      progress.totalPauseTime = totalPauseTime;
+      progress.skippedPauses = skippedPauses;
     } else {
       // Create new progress
       progress = new WorkoutProgress({
         user: req.user,
         plan,
-        exercises: [{ exercise, sets: set ? [set] : sets, notes }],
+        exercises,
         currentExerciseIndex,
         lastSetValues,
-        startTime: startTime || new Date() // Use provided startTime or current date
+        startTime: startTime || new Date(),
+        totalPauseTime,
+        skippedPauses
       });
     }
     progress.lastUpdated = new Date();
     await progress.save();
-    res.json({ message: 'Progress saved successfully' });
+    res.json({ message: 'Progress saved successfully', progress });
   } catch (error) {
+    console.error('Error saving progress:', error);
     next(new CustomError('Error saving progress: ' + error.message, 500));
   }
 });
 
 // Clear progress
-router.delete('/progress', auth, async (req, res, next) => {
+router.delete('/progress', async (req, res, next) => {
   try {
     await WorkoutProgress.findOneAndDelete({ user: req.user });
     res.json({ message: 'Workout progress cleared successfully' });
@@ -168,7 +175,7 @@ router.get('/progress', async (req, res, next) => {
     const progress = await WorkoutProgress.findOne({ user: req.user });
     
     if (progress) {
-      res.json(progress.data);
+      res.json(progress);
     } else {
       res.json(null);
     }
@@ -180,21 +187,14 @@ router.get('/progress', async (req, res, next) => {
 // Middleware function to get a workout by ID
 async function getWorkout(req, res, next) {
   try {
-    console.log('Fetching workout with ID:', req.params.id);
-    console.log('Authenticated user:', req.user);
-
     const workout = await Workout.findById(req.params.id)
       .populate('plan').populate('exercises.exercise');
     
-    console.log('Fetched workout:', workout);
-
     if (!workout) {
-      console.log('Workout not found');
       return next(new CustomError('Workout not found', 404));
     }
     
     if (workout.user.toString() !== req.user) {
-      console.log('User not authorized. Workout user:', workout.user, 'Request user:', req.user);
       return next(new CustomError('Not authorized to access this workout', 403));
     }
     
