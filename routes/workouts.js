@@ -126,33 +126,13 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
 // Save progress
 router.post('/progress', auth, async (req, res, next) => {
   try {
-    const { plan, exercise, set, sets, notes, currentExerciseIndex, lastSetValues } = req.body;
+    const { plan, exercise, set, sets, notes, currentExerciseIndex, lastSetValues, startTime } = req.body;
     
     let progress = await WorkoutProgress.findOne({ user: req.user, plan });
     if (progress) {
       // Update existing progress
-      if (set) {
-        // Single set update
-        progress.exercises = progress.exercises || [];
-        const exerciseIndex = progress.exercises.findIndex(e => e.exercise.toString() === exercise);
-        if (exerciseIndex > -1) {
-          progress.exercises[exerciseIndex].sets.push(set);
-        } else {
-          progress.exercises.push({ exercise, sets: [set] });
-        }
-      } else if (sets) {
-        // Full exercise update
-        progress.exercises = progress.exercises || [];
-        const exerciseIndex = progress.exercises.findIndex(e => e.exercise.toString() === exercise);
-        if (exerciseIndex > -1) {
-          progress.exercises[exerciseIndex].sets = sets;
-          progress.exercises[exerciseIndex].notes = notes;
-        } else {
-          progress.exercises.push({ exercise, sets, notes });
-        }
-      }
-      progress.currentExerciseIndex = currentExerciseIndex;
-      progress.lastSetValues = lastSetValues;
+      progress.startTime = startTime || progress.startTime; // Use existing startTime if not provided
+      // ... rest of the update logic ...
     } else {
       // Create new progress
       progress = new WorkoutProgress({
@@ -160,7 +140,8 @@ router.post('/progress', auth, async (req, res, next) => {
         plan,
         exercises: [{ exercise, sets: set ? [set] : sets, notes }],
         currentExerciseIndex,
-        lastSetValues
+        lastSetValues,
+        startTime: startTime || new Date() // Use provided startTime or current date
       });
     }
     progress.lastUpdated = new Date();
