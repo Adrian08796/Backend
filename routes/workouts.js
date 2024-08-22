@@ -126,36 +126,47 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
 // Save progress
 router.post('/progress', auth, async (req, res, next) => {
   try {
-    const progressData = req.body;
+    const { plan, exercise, set, sets, notes, currentExerciseIndex, lastSetValues } = req.body;
     
-    // Log the received data for debugging
-    console.log('Received progress data:', JSON.stringify(progressData, null, 2));
-
-    // Validate the received data
-    if (!progressData || typeof progressData !== 'object') {
-      throw new Error('Invalid progress data received');
-    }
-
-    let progress = await WorkoutProgress.findOne({ user: req.user });
+    let progress = await WorkoutProgress.findOne({ user: req.user, plan });
     if (progress) {
-      progress.data = progressData;
-      progress.lastUpdated = new Date();
+      // Update existing progress
+      if (set) {
+        // Single set update
+        progress.exercises = progress.exercises || [];
+        const exerciseIndex = progress.exercises.findIndex(e => e.exercise.toString() === exercise);
+        if (exerciseIndex > -1) {
+          progress.exercises[exerciseIndex].sets.push(set);
+        } else {
+          progress.exercises.push({ exercise, sets: [set] });
+        }
+      } else if (sets) {
+        // Full exercise update
+        progress.exercises = progress.exercises || [];
+        const exerciseIndex = progress.exercises.findIndex(e => e.exercise.toString() === exercise);
+        if (exerciseIndex > -1) {
+          progress.exercises[exerciseIndex].sets = sets;
+          progress.exercises[exerciseIndex].notes = notes;
+        } else {
+          progress.exercises.push({ exercise, sets, notes });
+        }
+      }
+      progress.currentExerciseIndex = currentExerciseIndex;
+      progress.lastSetValues = lastSetValues;
     } else {
+      // Create new progress
       progress = new WorkoutProgress({
         user: req.user,
-        data: progressData,
-        lastUpdated: new Date(),
+        plan,
+        exercises: [{ exercise, sets: set ? [set] : sets, notes }],
+        currentExerciseIndex,
+        lastSetValues
       });
     }
-
-    // Log the progress object before saving
-    console.log('Progress object to be saved:', JSON.stringify(progress, null, 2));
-
+    progress.lastUpdated = new Date();
     await progress.save();
-
     res.json({ message: 'Progress saved successfully' });
   } catch (error) {
-    console.error('Error saving progress:', error);
     next(new CustomError('Error saving progress: ' + error.message, 500));
   }
 });
