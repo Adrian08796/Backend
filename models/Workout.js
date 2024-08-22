@@ -68,7 +68,9 @@ const workoutSchema = new mongoose.Schema({
   },
   progression: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0,
+    max: 100
   }
 }, {
   timestamps: true
@@ -77,6 +79,13 @@ const workoutSchema = new mongoose.Schema({
 // Now you can add static methods to the schema
 
 workoutSchema.index({ user: 1, plan: 1, startTime: -1 });
+
+workoutSchema.pre('save', function(next) {
+  if (!this.planName && this.plan) {
+    this.planName = 'Unnamed Plan';
+  }
+  next();
+});
 
 workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
   return this.updateMany(

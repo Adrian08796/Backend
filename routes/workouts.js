@@ -77,7 +77,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // Get the last workout for a specific plan
-router.get('/last/:planId', auth, async (req, res, next) => {
+router.get('/last/:planId', async (req, res, next) => {
   try {
     const workout = await Workout.findOne({ 
       user: req.user, 
