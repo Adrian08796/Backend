@@ -1,4 +1,4 @@
-// models/WorkoutProgress.js
+// /workspace/models/WorkoutProgress.js
 
 const mongoose = require('mongoose');
 
