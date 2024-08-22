@@ -9,7 +9,7 @@ const WorkoutProgressSchema = new mongoose.Schema({
     required: true
   },
   data: {
-    type: Object,
+    type: mongoose.Schema.Types.Mixed,
     required: true
   },
   lastUpdated: {

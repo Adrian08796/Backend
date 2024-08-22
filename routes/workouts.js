@@ -125,10 +125,18 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
 });
 
 // Save progress
-router.post('/progress', async (req, res, next) => {
+router.post('/progress', auth, async (req, res, next) => {
   try {
     const progressData = req.body;
     
+    // Log the received data for debugging
+    console.log('Received progress data:', JSON.stringify(progressData, null, 2));
+
+    // Validate the received data
+    if (!progressData || typeof progressData !== 'object') {
+      throw new Error('Invalid progress data received');
+    }
+
     let progress = await WorkoutProgress.findOne({ user: req.user });
     if (progress) {
       progress.data = progressData;
@@ -140,11 +148,16 @@ router.post('/progress', async (req, res, next) => {
         lastUpdated: new Date(),
       });
     }
+
+    // Log the progress object before saving
+    console.log('Progress object to be saved:', JSON.stringify(progress, null, 2));
+
     await progress.save();
 
     res.json({ message: 'Progress saved successfully' });
   } catch (error) {
-    next(new CustomError('Error saving progress', 500));
+    console.error('Error saving progress:', error);
+    next(new CustomError('Error saving progress: ' + error.message, 500));
   }
 });
 
