@@ -1,9 +1,8 @@
-// routes/workouts.js
-
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
 const WorkoutPlan = require('../models/WorkoutPlan');
+const WorkoutProgress = require('../models/WorkoutProgress');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 
