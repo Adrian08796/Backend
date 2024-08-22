@@ -75,6 +75,9 @@ const workoutSchema = new mongoose.Schema({
 });
 
 // Now you can add static methods to the schema
+
+workoutSchema.index({ user: 1, plan: 1, startTime: -1 });
+
 workoutSchema.statics.handlePlanDeletion = async function(planId, planName) {
   return this.updateMany(
     { plan: planId },

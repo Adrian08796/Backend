@@ -2,6 +2,26 @@
 
 const Workout = require('../models/Workout');
 
+exports.getLastWorkoutForPlan = async (req, res) => {
+  try {
+    const workout = await Workout.findOne({ 
+      user: req.user.id, 
+      plan: req.params.planId 
+    })
+    .sort({ startTime: -1 })
+    .populate('plan')
+    .populate('exercises.exercise');
+
+    if (!workout) {
+      return res.status(404).json({ message: 'No workouts found for this plan' });
+    }
+
+    res.json(workout);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching last workout', error: error.message });
+  }
+};
+
 exports.createWorkout = async (req, res) => {
   try {
     console.log('Received workout data:', JSON.stringify(req.body, null, 2));
