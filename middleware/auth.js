@@ -1,6 +1,7 @@
 // middleware/auth.js
 const jwt = require('jsonwebtoken');
 const CustomError = require('../utils/customError');
+const { generateAccessToken } = require('../utils/tokenUtils');
 
 module.exports = function(req, res, next) {
   const token = req.header('x-auth-token');
@@ -9,10 +10,13 @@ module.exports = function(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded.id; // Make sure this line is present
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    req.user = decoded.id;
     next();
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired', tokenExpired: true });
+    }
     next(new CustomError('Token is not valid', 401));
   }
 };

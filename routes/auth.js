@@ -1,7 +1,5 @@
 // routes/auth.js
-
 // routes/auth.js
-
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -9,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
+const { generateAccessToken, generateRefreshToken } = require('../utils/tokenUtils');
 
 // Registration
 router.post('/register', async (req, res, next) => {
@@ -59,11 +58,14 @@ router.post('/login', async (req, res, next) => {
       return next(new CustomError('Invalid credentials', 400));
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+
     console.log('Login successful for user:', user.username);
 
     res.json({ 
-      token, 
+      accessToken, 
+      refreshToken,
       user: {
         id: user._id,
         username: user.username,
@@ -73,6 +75,34 @@ router.post('/login', async (req, res, next) => {
   } catch (error) {
     console.error('Error logging in:', error);
     next(new CustomError('Error logging in', 500));
+  }
+});
+
+// Refresh Token
+router.post('/refresh-token', async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return next(new CustomError('Refresh token is required', 400));
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    const accessToken = generateAccessToken(user._id);
+    const newRefreshToken = generateRefreshToken(user._id);
+
+    res.json({ accessToken, refreshToken: newRefreshToken });
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return next(new CustomError('Invalid refresh token', 401));
+    }
+    next(new CustomError('Error refreshing token', 500));
   }
 });
 
@@ -90,6 +120,31 @@ router.get('/user', auth, async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching user:', error);
     next(new CustomError('Error fetching user', 500));
+  }
+});
+
+// Refresh Token
+router.post('/refresh-token', async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return next(new CustomError('Refresh token is required', 400));
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    const newRefreshToken = jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+
+    res.json({ accessToken, refreshToken: newRefreshToken });
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    next(new CustomError('Error refreshing token', 500));
   }
 });
 
