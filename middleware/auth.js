@@ -1,7 +1,6 @@
 // middleware/auth.js
 const jwt = require('jsonwebtoken');
 const CustomError = require('../utils/customError');
-const { generateAccessToken } = require('../utils/tokenUtils');
 
 module.exports = function(req, res, next) {
   const token = req.header('x-auth-token');

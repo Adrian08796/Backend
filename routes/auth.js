@@ -1,5 +1,4 @@
 // routes/auth.js
-// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -60,8 +59,6 @@ router.post('/login', async (req, res, next) => {
 
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
-
-    console.log('Login successful for user:', user.username);
 
     res.json({ 
       accessToken, 
