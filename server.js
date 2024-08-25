@@ -7,9 +7,8 @@ const cors = require('cors');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
-
 
 // Middleware
 
@@ -19,6 +18,12 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Verify that the JWT secrets are set
+if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  console.error('JWT secrets are not set. Please check your .env file.');
+  process.exit(1);
+}
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
