@@ -90,14 +90,33 @@ router.post('/refresh-token', async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
 
+    // Check if the refresh token has been blacklisted
+    if (user.blacklistedTokens.includes(refreshToken)) {
+      return next(new CustomError('Invalid refresh token', 401));
+    }
+
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    res.json({ accessToken, refreshToken: newRefreshToken });
+    // Implement token rotation
+    user.blacklistedTokens.push(refreshToken);
+    if (user.blacklistedTokens.length > 5) { // Keep last 5 blacklisted tokens
+      user.blacklistedTokens.shift();
+    }
+    await user.save();
+
+    res.json({ 
+      accessToken, 
+      refreshToken: newRefreshToken,
+      expiresIn: 900 // 15 minutes in seconds
+    });
   } catch (error) {
     console.error('Error refreshing token:', error);
     if (error.name === 'JsonWebTokenError') {
       return next(new CustomError('Invalid refresh token', 401));
+    }
+    if (error.name === 'TokenExpiredError') {
+      return next(new CustomError('Refresh token expired', 401));
     }
     next(new CustomError('Error refreshing token', 500));
   }
@@ -120,28 +139,26 @@ router.get('/user', auth, async (req, res, next) => {
   }
 });
 
-// Refresh Token
-router.post('/refresh-token', async (req, res, next) => {
+// Logout
+router.post('/logout', auth, async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-      return next(new CustomError('Refresh token is required', 400));
-    }
-
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-    const user = await User.findById(decoded.id);
-
+    const user = await User.findById(req.user);
     if (!user) {
       return next(new CustomError('User not found', 404));
     }
 
-    const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
-    const newRefreshToken = jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+    // Optionally, you can blacklist the current refresh token here
+    // This depends on how you're sending the refresh token in the request
+    const refreshToken = req.body.refreshToken;
+    if (refreshToken) {
+      user.blacklistedTokens.push(refreshToken);
+      await user.save();
+    }
 
-    res.json({ accessToken, refreshToken: newRefreshToken });
+    res.json({ message: 'Logged out successfully' });
   } catch (error) {
-    console.error('Error refreshing token:', error);
-    next(new CustomError('Error refreshing token', 500));
+    console.error('Error logging out:', error);
+    next(new CustomError('Error logging out', 500));
   }
 });
 
