@@ -135,7 +135,7 @@ router.post('/refresh-token', async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
 
-    const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1m' });
+    const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
     const newRefreshToken = jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
     res.json({ accessToken, refreshToken: newRefreshToken });
