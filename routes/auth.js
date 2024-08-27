@@ -75,57 +75,55 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-// Refresh Token
 router.post('/refresh-token', async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
+    console.log('Received refresh token:', refreshToken);
+
     if (!refreshToken) {
+      console.log('No refresh token provided');
       return res.status(400).json({ message: 'Refresh token is required' });
     }
 
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      console.log('Decoded refresh token:', decoded);
     } catch (error) {
       console.error('Error verifying refresh token:', error);
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
     const user = await User.findById(decoded.id);
+    console.log('User found:', user ? user._id : 'Not found');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if the refresh token has been blacklisted
     if (user.blacklistedTokens.includes(refreshToken)) {
+      console.log('Refresh token is blacklisted');
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    // Implement token rotation
     user.blacklistedTokens.push(refreshToken);
-    if (user.blacklistedTokens.length > 5) { // Keep last 5 blacklisted tokens
+    if (user.blacklistedTokens.length > 5) {
       user.blacklistedTokens.shift();
     }
     await user.save();
 
+    console.log('New tokens generated successfully');
     res.json({ 
       accessToken, 
       refreshToken: newRefreshToken,
       expiresIn: 900 // 15 minutes in seconds
     });
   } catch (error) {
-    console.error('Error refreshing token:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Invalid refresh token' });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Refresh token expired' });
-    }
-    next(new CustomError('Error refreshing token', 500));
+    console.error('Error in refresh token route:', error);
+    next(error);
   }
 });
 
