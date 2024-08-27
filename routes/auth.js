@@ -80,19 +80,26 @@ router.post('/refresh-token', async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
-      return next(new CustomError('Refresh token is required', 400));
+      return res.status(400).json({ message: 'Refresh token is required' });
     }
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    } catch (error) {
+      console.error('Error verifying refresh token:', error);
+      return res.status(401).json({ message: 'Invalid refresh token' });
+    }
+
     const user = await User.findById(decoded.id);
 
     if (!user) {
-      return next(new CustomError('User not found', 404));
+      return res.status(404).json({ message: 'User not found' });
     }
 
     // Check if the refresh token has been blacklisted
     if (user.blacklistedTokens.includes(refreshToken)) {
-      return next(new CustomError('Invalid refresh token', 401));
+      return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
     const accessToken = generateAccessToken(user._id);
@@ -113,10 +120,10 @@ router.post('/refresh-token', async (req, res, next) => {
   } catch (error) {
     console.error('Error refreshing token:', error);
     if (error.name === 'JsonWebTokenError') {
-      return next(new CustomError('Invalid refresh token', 401));
+      return res.status(401).json({ message: 'Invalid refresh token' });
     }
     if (error.name === 'TokenExpiredError') {
-      return next(new CustomError('Refresh token expired', 401));
+      return res.status(401).json({ message: 'Refresh token expired' });
     }
     next(new CustomError('Error refreshing token', 500));
   }
