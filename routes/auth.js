@@ -101,16 +101,29 @@ router.post('/refresh-token', async (req, res, next) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    if (user.blacklistedTokens.includes(refreshToken)) {
-      console.log('Refresh token is blacklisted');
-      return res.status(401).json({ message: 'Invalid refresh token' });
+    // Check if the token is in the blacklist
+    const tokenIndex = user.blacklistedTokens.indexOf(refreshToken);
+    if (tokenIndex !== -1) {
+      // If the token is blacklisted, check if it's recent (within the last 5 minutes)
+      const blacklistedTime = new Date(user.blacklistedTokens[tokenIndex + 1]); // Assuming you store the blacklist time
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (blacklistedTime > fiveMinutesAgo) {
+        console.log('Recent blacklisted token, allowing reuse');
+        // Remove the token from the blacklist
+        user.blacklistedTokens.splice(tokenIndex, 2);
+      } else {
+        console.log('Refresh token is blacklisted');
+        return res.status(401).json({ message: 'Invalid refresh token' });
+      }
     }
 
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    user.blacklistedTokens.push(refreshToken);
-    if (user.blacklistedTokens.length > 5) {
+    // Add the old refresh token to the blacklist with the current timestamp
+    user.blacklistedTokens.push(refreshToken, new Date());
+    if (user.blacklistedTokens.length > 10) { // Keep last 5 blacklisted tokens (2 entries per token)
+      user.blacklistedTokens.shift();
       user.blacklistedTokens.shift();
     }
     await user.save();
