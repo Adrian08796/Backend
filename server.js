@@ -13,7 +13,7 @@ require('dotenv').config();
 // Middleware
 
 app.use(cors({
-  // origin: 'https://walrus-app-lqhsg.ondigitalocean.app',
+  // origin: 'https://walrus-app-lqhsg.ondigitalocean.app', 
   origin: 'http://192.168.178.42:3000', // or whatever URL your frontend is running on
   credentials: true
 }));
