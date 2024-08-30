@@ -88,7 +88,7 @@ router.get('/last/:planId', async (req, res, next) => {
     .populate('exercises.exercise');
 
     if (!workout) {
-      return res.status(404).json({ message: 'No workouts found for this plan' });
+      return res.status(200).json({ message: 'No workouts found for this plan' });
     }
 
     res.json(workout);
