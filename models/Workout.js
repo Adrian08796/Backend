@@ -1,4 +1,4 @@
-// /workspace/models/Workout.js
+// models/Workout.js
 
 const mongoose = require('mongoose');
 
@@ -24,14 +24,12 @@ const workoutSchema = new mongoose.Schema({
       required: true
     },
     sets: [{
-      weight: {
-        type: Number,
-        required: true
-      },
-      reps: {
-        type: Number,
-        required: true
-      },
+      weight: Number,
+      reps: Number,
+      duration: Number,
+      distance: Number,
+      intensity: Number,
+      incline: Number,
       completedAt: {
         type: Date,
         required: true
@@ -75,8 +73,6 @@ const workoutSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
-
-// Now you can add static methods to the schema
 
 workoutSchema.index({ user: 1, plan: 1, startTime: -1 });
 
