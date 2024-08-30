@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
     const workoutPlans = await WorkoutPlan.find({ user: req.user })
       .populate({
         path: 'exercises',
-        select: 'name description target imageUrl'
+        select: 'name description target imageUrl category exerciseType measurementType'
       });
     res.json(workoutPlans);
   } catch (err) {
