@@ -19,19 +19,41 @@ router.get('/', async (req, res, next) => {
 
 // Add a new exercise
 router.post('/', async (req, res, next) => {
-  const { name, description, target, imageUrl, category } = req.body;
-  const newExercise = new Exercise({
-    name,
-    description,
-    target: Array.isArray(target) ? target : [target],
-    imageUrl: imageUrl || undefined,
-    category
-  });
   try {
+    const { name, description, target, imageUrl, category } = req.body;
+    
+    // Determine exerciseType and measurementType based on category
+    let exerciseType, measurementType;
+    if (category === 'Strength') {
+      exerciseType = 'strength';
+      measurementType = 'weight_reps';
+    } else if (category === 'Cardio') {
+      exerciseType = 'cardio';
+      measurementType = 'duration'; // Default to duration for cardio
+    } else {
+      // For Flexibility, we'll set default values
+      exerciseType = 'strength'; // or another appropriate default
+      measurementType = 'duration'; // or another appropriate default
+    }
+
+    const newExercise = new Exercise({
+      name,
+      description,
+      target: Array.isArray(target) ? target : [target],
+      imageUrl: imageUrl || undefined,
+      category,
+      exerciseType,
+      measurementType
+    });
+
     const savedExercise = await newExercise.save();
     res.status(201).json(savedExercise);
   } catch (err) {
-    next(new CustomError('Error creating exercise', 400));
+    if (err.name === 'ValidationError') {
+      const validationErrors = Object.values(err.errors).map(error => error.message);
+      return next(new CustomError(`Validation error: ${validationErrors.join(', ')}`, 400));
+    }
+    next(new CustomError('Error creating exercise', 500));
   }
 });
 
@@ -51,7 +73,7 @@ router.get('/:id', async (req, res, next) => {
 // Update an exercise
 router.put('/:id', async (req, res, next) => {
   try {
-    const { target, category } = req.body;
+    const { target, category, exerciseType, measurementType } = req.body;
     if (target && !Array.isArray(target)) {
       req.body.target = [target];
     }

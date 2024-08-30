@@ -1,3 +1,5 @@
+// routes/workouts.js
+
 const express = require('express');
 const router = express.Router();
 const Workout = require('../models/Workout');
@@ -33,7 +35,7 @@ router.get('/user', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { plan, planName, exercises, startTime, endTime, totalPauseTime, skippedPauses, progression } = req.body;
-    
+
     if (!planName || !exercises || !startTime || !endTime) {
       return next(new CustomError('Missing required fields', 400));
     }
@@ -88,7 +90,7 @@ router.get('/last/:planId', async (req, res, next) => {
     .populate('exercises.exercise');
 
     if (!workout) {
-      return res.status(404).json({ message: 'No workouts found for this plan' });
+      return res.status(200).json({ message: 'No workouts found for this plan' });
     }
 
     res.json(workout);
