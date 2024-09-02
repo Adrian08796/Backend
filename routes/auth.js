@@ -140,6 +140,31 @@ router.post('/refresh-token', async (req, res, next) => {
   }
 });
 
+router.post('/logout', auth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user);
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    const accessToken = req.header('x-auth-token');
+    user.blacklistedTokens.push(accessToken);
+    
+    // Also blacklist the refresh token if it's provided
+    const refreshToken = req.body.refreshToken;
+    if (refreshToken) {
+      user.blacklistedTokens.push(refreshToken);
+    }
+
+    await user.save();
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Error logging out:', error);
+    next(new CustomError('Error logging out', 500));
+  }
+});
+
 // Get current user
 router.get('/user', auth, async (req, res, next) => {
   try {
