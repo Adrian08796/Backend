@@ -6,6 +6,7 @@ const User = require('../models/User');
 const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
 const { generateAccessToken, generateRefreshToken } = require('../utils/tokenUtils');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 // Registration
 router.post('/register', async (req, res, next) => {
@@ -80,6 +81,7 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+
 // Refresh token
 router.post('/refresh-token', async (req, res, next) => {
   try {
@@ -110,12 +112,14 @@ router.post('/refresh-token', async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
+    // Remove the used refresh token
+    user.activeRefreshTokens.splice(tokenIndex, 1);
+
     // Generate new tokens
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    // Remove the old refresh token and add the new one
-    user.activeRefreshTokens = user.activeRefreshTokens.filter(token => token !== refreshToken);
+    // Add the new refresh token
     user.addRefreshToken(newRefreshToken);
 
     await user.save();
@@ -135,7 +139,7 @@ router.post('/refresh-token', async (req, res, next) => {
 });
 
 
-// Logout
+// Logout route
 router.post('/logout', auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user);
@@ -146,8 +150,13 @@ router.post('/logout', auth, async (req, res, next) => {
     const refreshToken = req.body.refreshToken;
     if (refreshToken) {
       user.removeRefreshToken(refreshToken);
-      await user.save();
     }
+
+    // Blacklist the current access token
+    const accessToken = req.header('x-auth-token');
+    await TokenBlacklist.create({ token: accessToken });
+
+    await user.save();
 
     res.json({ message: 'Logged out successfully' });
   } catch (error) {

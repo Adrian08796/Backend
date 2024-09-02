@@ -12,14 +12,17 @@ const UserSchema = new mongoose.Schema({
 });
 
 UserSchema.methods.addRefreshToken = function(token) {
-  this.activeRefreshTokens.push(token);
-  if (this.activeRefreshTokens.length > MAX_ACTIVE_REFRESH_TOKENS) {
+  if (this.activeRefreshTokens.length >= MAX_ACTIVE_REFRESH_TOKENS) {
     this.activeRefreshTokens.shift(); // Remove the oldest token
   }
+  this.activeRefreshTokens.push(token);
 };
 
 UserSchema.methods.removeRefreshToken = function(token) {
-  this.activeRefreshTokens = this.activeRefreshTokens.filter(t => t !== token);
+  const index = this.activeRefreshTokens.indexOf(token);
+  if (index > -1) {
+    this.activeRefreshTokens.splice(index, 1);
+  }
 };
 
 module.exports = mongoose.model('User', UserSchema);
