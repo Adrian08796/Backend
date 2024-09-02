@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const API_URL = 'http://localhost:4500/api'; // Adjust this to your server URL
-let accessToken, refreshToken;
+let accessToken, refreshToken, oldRefreshToken;
 
 async function testTokenBlacklisting() {
   try {
@@ -66,27 +66,43 @@ async function testTokenBlacklisting() {
     accessToken = newLoginResponse.data.accessToken;
     refreshToken = newLoginResponse.data.refreshToken;
     console.log('New login successful, new tokens received');
+    console.log('New refresh token:', refreshToken);
 
     // Step 7: Refresh token
-    console.log('\n7. Refreshing token...');
-    const refreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
-    const oldRefreshToken = refreshToken;
-    refreshToken = refreshResponse.data.refreshToken;
-    accessToken = refreshResponse.data.accessToken;
-    console.log('Token refreshed successfully');
+console.log('\n7. Refreshing token...');
+try {
+  oldRefreshToken = refreshToken;
+  const refreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
+  console.log('Refresh response:', refreshResponse.data);
+  refreshToken = refreshResponse.data.refreshToken;
+  accessToken = refreshResponse.data.accessToken;
+  console.log('Token refreshed successfully');
+  console.log('New refresh token:', refreshToken);
+  console.log('Old refresh token:', oldRefreshToken);
 
-    // Step 8: Try to use old refresh token
-    console.log('\n8. Trying to use old refresh token...');
-    try {
-      await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken: oldRefreshToken });
-      console.log('ERROR: Old refresh token should not be usable');
-    } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Test passed: Old refresh token correctly blacklisted');
-      } else {
-        throw error;
-      }
-    }
+  // Add a small delay to ensure the server has time to process the token refresh
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+} catch (error) {
+  console.error('Error refreshing token:', error.response ? error.response.data : error.message);
+  throw error;
+}
+
+// Step 8: Try to use old refresh token
+console.log('\n8. Trying to use old refresh token...');
+try {
+  const oldRefreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken: oldRefreshToken });
+  console.log('ERROR: Old refresh token should not be usable');
+  console.log('Unexpected response:', oldRefreshResponse.data);
+  throw new Error('Old refresh token was accepted when it should have been rejected');
+} catch (error) {
+  if (error.response && error.response.status === 401) {
+    console.log('Test passed: Old refresh token correctly rejected');
+  } else {
+    console.error('Unexpected error when using old refresh token:', error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
 
     console.log('\nAll token blacklisting tests completed successfully');
 
