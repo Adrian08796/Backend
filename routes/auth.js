@@ -1,4 +1,3 @@
-// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -7,6 +6,7 @@ const User = require('../models/User');
 const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
 const { generateAccessToken, generateRefreshToken } = require('../utils/tokenUtils');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 // Registration
 router.post('/register', async (req, res, next) => {
@@ -39,7 +39,7 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
-// Login
+// Login route
 router.post('/login', async (req, res, next) => {
   try {
     console.log('Received login request:', req.body);
@@ -60,6 +60,13 @@ router.post('/login', async (req, res, next) => {
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
+    // Clear all existing refresh tokens and add the new one
+    user.activeRefreshTokens = [];
+    user.addRefreshToken(refreshToken);
+    await user.save();
+
+    console.log('Login successful. Active refresh tokens:', user.activeRefreshTokens);
+
     res.json({ 
       accessToken, 
       refreshToken,
@@ -70,65 +77,56 @@ router.post('/login', async (req, res, next) => {
       }
     });
   } catch (error) {
-    console.error('Error logging in:', error);
-    next(new CustomError('Error logging in', 500));
+    next(error);
   }
 });
 
+
+// Refresh token
 router.post('/refresh-token', async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
     console.log('Received refresh token:', refreshToken);
 
     if (!refreshToken) {
-      console.log('No refresh token provided');
       return res.status(400).json({ message: 'Refresh token is required' });
     }
 
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-      console.log('Decoded refresh token:', decoded);
     } catch (error) {
-      console.error('Error verifying refresh token:', error);
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
     const user = await User.findById(decoded.id);
-    console.log('User found:', user ? user._id : 'Not found');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if the token is in the blacklist
-    const tokenIndex = user.blacklistedTokens.indexOf(refreshToken);
-    if (tokenIndex !== -1) {
-      // If the token is blacklisted, check if it's recent (within the last 5 minutes)
-      const blacklistedTime = new Date(user.blacklistedTokens[tokenIndex + 1]); // Assuming you store the blacklist time
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      if (blacklistedTime > fiveMinutesAgo) {
-        console.log('Recent blacklisted token, allowing reuse');
-        // Remove the token from the blacklist
-        user.blacklistedTokens.splice(tokenIndex, 2);
-      } else {
-        console.log('Refresh token is blacklisted');
-        return res.status(401).json({ message: 'Invalid refresh token' });
-      }
+    // Check if the token is in the active list
+    const tokenIndex = user.activeRefreshTokens.indexOf(refreshToken);
+    if (tokenIndex === -1) {
+      console.log('Refresh token not found in active tokens');
+      return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
+    // Remove the used refresh token
+    user.activeRefreshTokens.splice(tokenIndex, 1);
+
+    // Generate new tokens
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    // Add the old refresh token to the blacklist with the current timestamp
-    user.blacklistedTokens.push(refreshToken, new Date());
-    if (user.blacklistedTokens.length > 10) { // Keep last 5 blacklisted tokens (2 entries per token)
-      user.blacklistedTokens.shift();
-      user.blacklistedTokens.shift();
-    }
+    // Add the new refresh token
+    user.addRefreshToken(newRefreshToken);
+
     await user.save();
 
-    console.log('New tokens generated successfully');
+    console.log('New refresh token generated:', newRefreshToken);
+    console.log('Active refresh tokens:', user.activeRefreshTokens);
+
     res.json({ 
       accessToken, 
       refreshToken: newRefreshToken,
@@ -137,6 +135,32 @@ router.post('/refresh-token', async (req, res, next) => {
   } catch (error) {
     console.error('Error in refresh token route:', error);
     next(error);
+  }
+});
+
+
+// Logout route
+router.post('/logout', auth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user);
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    const refreshToken = req.body.refreshToken;
+    if (refreshToken) {
+      user.removeRefreshToken(refreshToken);
+    }
+
+    // Blacklist the current access token
+    const accessToken = req.header('x-auth-token');
+    await TokenBlacklist.create({ token: accessToken });
+
+    await user.save();
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    next(new CustomError('Error logging out', 500));
   }
 });
 
