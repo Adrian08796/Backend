@@ -3,7 +3,7 @@
 const jwt = require('jsonwebtoken');
 const CustomError = require('../utils/customError');
 const User = require('../models/User');
-const TokenBlacklist = require('../models/TokenBlacklist'); // Add this line
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 module.exports = async function(req, res, next) {
   const token = req.header('x-auth-token');
@@ -25,7 +25,10 @@ module.exports = async function(req, res, next) {
       return next(new CustomError('User not found', 404));
     }
 
-    req.user = decoded.id;
+    req.user.id = {
+      id: decoded.id,
+      username: user.username
+    };
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
