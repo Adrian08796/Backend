@@ -14,10 +14,14 @@ router.post('/register', async (req, res, next) => {
     console.log('Received registration request:', req.body);
     const { username, email, password } = req.body;
 
+    if (!username || !email || !password) {
+      return next(new CustomError('All fields are required', 400));
+    }
+
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       console.log('User already exists:', existingUser.username);
-      return next(new CustomError('User already exists', 400));
+      return next(new CustomError('User with this email or username already exists', 400));
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -35,7 +39,11 @@ router.post('/register', async (req, res, next) => {
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
     console.error('Error registering user:', error);
-    next(new CustomError('Error registering user', 500));
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return next(new CustomError(`Validation error: ${validationErrors.join(', ')}`, 400));
+    }
+    next(new CustomError('Error registering user: ' + error.message, 500));
   }
 });
 
@@ -95,13 +103,16 @@ router.post('/refresh-token', async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+      console.log('Decoded refresh token:', decoded);
     } catch (error) {
+      console.error('Error verifying refresh token:', error);
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
     const user = await User.findById(decoded.id);
 
     if (!user) {
+      console.log('User not found for id:', decoded.id);
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -112,19 +123,19 @@ router.post('/refresh-token', async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
-    // Remove the used refresh token
-    user.activeRefreshTokens.splice(tokenIndex, 1);
-
     // Generate new tokens
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
+    // Remove the old refresh token
+    user.activeRefreshTokens.splice(tokenIndex, 1);
+    
     // Add the new refresh token
     user.addRefreshToken(newRefreshToken);
 
     await user.save();
 
-    console.log('New refresh token generated:', newRefreshToken);
+    console.log('New tokens generated:', { accessToken, newRefreshToken });
     console.log('Active refresh tokens:', user.activeRefreshTokens);
 
     res.json({ 
@@ -137,6 +148,7 @@ router.post('/refresh-token', async (req, res, next) => {
     next(error);
   }
 });
+
 
 
 // Logout route
