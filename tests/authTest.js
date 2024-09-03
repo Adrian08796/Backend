@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const API_URL = 'http://localhost:4500/api'; // Adjust this to your server URL
-let accessToken, refreshToken;
+let accessToken, refreshToken; 
 
 async function testAuth() {
   try {
