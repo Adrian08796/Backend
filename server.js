@@ -9,6 +9,7 @@ const https = require('https');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+require('newrelic');
 
 // Middleware
 

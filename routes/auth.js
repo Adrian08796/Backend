@@ -142,7 +142,7 @@ router.post('/refresh-token', async (req, res, next) => {
 // Logout route
 router.post('/logout', auth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.user);
+    const user = await User.findById(req.user.id);
     if (!user) {
       return next(new CustomError('User not found', 404));
     }
@@ -167,10 +167,10 @@ router.post('/logout', auth, async (req, res, next) => {
 // Get current user
 router.get('/user', auth, async (req, res, next) => {
   try {
-    console.log('Fetching user data for user ID:', req.user);
-    const user = await User.findById(req.user).select('-password');
+    console.log('Fetching user data for user ID:', req.user.id);
+    const user = await User.findById(req.user.id).select('-password');
     if (!user) {
-      console.log('User not found for ID:', req.user);
+      console.log('User not found for ID:', req.user.id);
       return next(new CustomError('User not found', 404));
     }
     console.log('User data fetched successfully:', user.username);
@@ -184,7 +184,7 @@ router.get('/user', auth, async (req, res, next) => {
 // Logout
 router.post('/logout', auth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.user);
+    const user = await User.findById(req.user.id);
     if (!user) {
       return next(new CustomError('User not found', 404));
     }

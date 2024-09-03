@@ -12,7 +12,7 @@ router.use(auth);
 // Get all workout plans
 router.get('/', async (req, res, next) => {
   try {
-    const workoutPlans = await WorkoutPlan.find({ user: req.user })
+    const workoutPlans = await WorkoutPlan.find({ user: req.user.id })
       .populate({
         path: 'exercises',
         select: 'name description target imageUrl category exerciseType measurementType'
@@ -31,7 +31,7 @@ router.post('/', async (req, res, next) => {
       return next(new CustomError('Invalid workout plan data', 400));
     }
     const newWorkoutPlan = new WorkoutPlan({ 
-      user: req.user,
+      user: req.user.id,
       name, 
       exercises,
       scheduledDate,
@@ -50,7 +50,7 @@ router.put('/:id', async (req, res, next) => {
   try {
     const { name, exercises, scheduledDate, type } = req.body;
     const updatedWorkoutPlan = await WorkoutPlan.findOneAndUpdate(
-      { _id: req.params.id, user: req.user },
+      { _id: req.params.id, user: req.user.id },
       { name, exercises, scheduledDate, type },
       { new: true, runValidators: true }
     ).populate('exercises');
@@ -77,7 +77,7 @@ router.post('/:id/exercises', async (req, res, next) => {
       return next(new CustomError('Exercise not found', 404));
     }
 
-    const workoutPlan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user });
+    const workoutPlan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
     if (!workoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
@@ -101,7 +101,7 @@ router.post('/:id/exercises', async (req, res, next) => {
 // Delete a workout plan
 router.delete('/:id', async (req, res, next) => {
   try {
-    const workoutPlan = await WorkoutPlan.findOneAndDelete({ _id: req.params.id, user: req.user });
+    const workoutPlan = await WorkoutPlan.findOneAndDelete({ _id: req.params.id, user: req.user.id });
     if (!workoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
