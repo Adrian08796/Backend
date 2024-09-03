@@ -5,8 +5,10 @@ const router = express.Router();
 const Workout = require('../models/Workout');
 const WorkoutPlan = require('../models/WorkoutPlan');
 const WorkoutProgress = require('../models/WorkoutProgress');
+const Exercise = require('../models/Exercise');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
+const mongoose = require('mongoose');
 
 router.use(auth);
 
@@ -100,15 +102,34 @@ router.get('/last/:planId', async (req, res, next) => {
 });
 
 // Get exercise history
-router.get('/exercise-history/:exerciseId', async (req, res, next) => {
+router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
   try {
     const { exerciseId } = req.params;
+    console.log(`Fetching exercise history for exerciseId: ${exerciseId}`);
+
+    if (!exerciseId || exerciseId === 'undefined') {
+      return res.status(400).json({ message: 'Invalid exercise ID provided' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(exerciseId)) {
+      return res.status(400).json({ message: 'Invalid exercise ID format' });
+    }
+
+    // Check if the exercise exists
+    const exercise = await Exercise.findById(exerciseId);
+    if (!exercise) {
+      console.log(`Exercise not found for id: ${exerciseId}`);
+      return res.status(404).json({ message: 'Exercise not found' });
+    }
+
     const workouts = await Workout.find({ 
       user: req.user.id,
       'exercises.exercise': exerciseId
     })
     .sort({ startTime: -1 })
     .limit(5);
+
+    console.log(`Found ${workouts.length} workouts for exercise history`);
 
     const exerciseHistory = workouts.map(workout => {
       const exerciseData = workout.exercises.find(e => e.exercise.toString() === exerciseId);
@@ -121,7 +142,8 @@ router.get('/exercise-history/:exerciseId', async (req, res, next) => {
 
     res.json(exerciseHistory);
   } catch (error) {
-    next(new CustomError('Error fetching exercise history', 500));
+    console.error('Error fetching exercise history:', error);
+    next(new CustomError(`Error fetching exercise history: ${error.message}`, 500));
   }
 });
 
@@ -130,9 +152,10 @@ router.post('/progress', auth, async (req, res, next) => {
   try {
     const { plan, exercises, currentExerciseIndex, lastSetValues, startTime, totalPauseTime, skippedPauses } = req.body;
     
-    let progress = await WorkoutProgress.findOne({ user: req.user.id, plan });
+    let progress = await WorkoutProgress.findOne({ user: req.user.id });
     if (progress) {
       // Update existing progress
+      progress.plan = plan;
       progress.exercises = exercises;
       progress.currentExerciseIndex = currentExerciseIndex;
       progress.lastSetValues = lastSetValues;
@@ -174,7 +197,7 @@ router.delete('/progress', auth, async (req, res, next) => {
 // Get active plan (progress)
 router.get('/progress', auth, async (req, res, next) => {
   try {
-    const progress = await WorkoutProgress.findOne({ user: req.user.id });
+    const progress = await WorkoutProgress.findOne({ user: req.user.id }).populate('plan');
     
     if (progress) {
       res.json(progress);
