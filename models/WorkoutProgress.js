@@ -3,14 +3,12 @@
 const mongoose = require('mongoose');
 
 const SetSchema = new mongoose.Schema({
-  weight: {
-    type: Number,
-    required: true
-  },
-  reps: {
-    type: Number,
-    required: true
-  },
+  weight: Number,
+  reps: Number,
+  duration: Number,
+  distance: Number,
+  intensity: Number,
+  incline: Number,
   completedAt: {
     type: Date,
     required: true
@@ -28,7 +26,11 @@ const ExerciseProgressSchema = new mongoose.Schema({
     required: true
   },
   sets: [SetSchema],
-  notes: String
+  notes: String,
+  requiredSets: {
+    type: Number,
+    default: 3
+  }
 });
 
 const WorkoutProgressSchema = new mongoose.Schema({
@@ -65,7 +67,16 @@ const WorkoutProgressSchema = new mongoose.Schema({
   },
   lastSetValues: {
     type: mongoose.Schema.Types.Mixed
-  }
+  },
+  completedSets: {
+    type: Number,
+    default: 0
+  },
+  totalSets: {
+    type: Number,
+    default: 0
+  },
+  notes: [String]
 });
 
 module.exports = mongoose.model('WorkoutProgress', WorkoutProgressSchema);

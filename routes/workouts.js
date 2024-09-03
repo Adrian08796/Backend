@@ -150,7 +150,17 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
 // Save progress
 router.post('/progress', auth, async (req, res, next) => {
   try {
-    const { plan, exercises, currentExerciseIndex, lastSetValues, startTime, totalPauseTime, skippedPauses } = req.body;
+    const { 
+      plan, 
+      exercises, 
+      currentExerciseIndex, 
+      lastSetValues, 
+      startTime, 
+      totalPauseTime, 
+      skippedPauses, 
+      completedSets, 
+      totalSets 
+    } = req.body;
     
     let progress = await WorkoutProgress.findOne({ user: req.user.id });
     if (progress) {
@@ -162,6 +172,8 @@ router.post('/progress', auth, async (req, res, next) => {
       progress.startTime = startTime || progress.startTime;
       progress.totalPauseTime = totalPauseTime;
       progress.skippedPauses = skippedPauses;
+      progress.completedSets = completedSets;
+      progress.totalSets = totalSets;
     } else {
       // Create new progress
       progress = new WorkoutProgress({
@@ -172,10 +184,16 @@ router.post('/progress', auth, async (req, res, next) => {
         lastSetValues,
         startTime: startTime || new Date(),
         totalPauseTime,
-        skippedPauses
+        skippedPauses,
+        completedSets,
+        totalSets
       });
     }
     progress.lastUpdated = new Date();
+
+    // Validate the progress object before saving
+    await progress.validate();
+
     await progress.save();
     res.json({ message: 'Progress saved successfully', progress });
   } catch (error) {
@@ -190,14 +208,24 @@ router.delete('/progress', auth, async (req, res, next) => {
     await WorkoutProgress.findOneAndDelete({ user: req.user.id });
     res.json({ message: 'Workout progress cleared successfully' });
   } catch (error) {
-    next(new CustomError('Error clearing workout progress', 500));
+    console.error('Error clearing workout progress:', error);
+    next(new CustomError('Error clearing workout progress: ' + error.message, 500));
   }
 });
+
 
 // Get active plan (progress)
 router.get('/progress', auth, async (req, res, next) => {
   try {
-    const progress = await WorkoutProgress.findOne({ user: req.user.id }).populate('plan');
+    const progress = await WorkoutProgress.findOne({ user: req.user.id })
+      .populate({
+        path: 'plan',
+        populate: {
+          path: 'exercises',
+          model: 'Exercise'
+        }
+      })
+      .populate('exercises.exercise');
     
     if (progress) {
       res.json(progress);
@@ -205,7 +233,8 @@ router.get('/progress', auth, async (req, res, next) => {
       res.json(null);
     }
   } catch (error) {
-    next(new CustomError('Error fetching active plan', 500));
+    console.error('Error fetching active plan:', error);
+    next(new CustomError('Error fetching active plan: ' + error.message, 500));
   }
 });
 
