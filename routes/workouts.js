@@ -147,7 +147,6 @@ router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
   }
 });
 
-// Save progress
 router.post('/progress', auth, async (req, res, next) => {
   try {
     const { 
@@ -166,7 +165,13 @@ router.post('/progress', auth, async (req, res, next) => {
     if (progress) {
       // Update existing progress
       progress.plan = plan;
-      progress.exercises = exercises;
+      progress.exercises = exercises.map(exercise => ({
+        ...exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          completedAt: set.completedAt || new Date()
+        }))
+      }));
       progress.currentExerciseIndex = currentExerciseIndex;
       progress.lastSetValues = lastSetValues;
       progress.startTime = startTime || progress.startTime;
@@ -179,7 +184,13 @@ router.post('/progress', auth, async (req, res, next) => {
       progress = new WorkoutProgress({
         user: req.user.id,
         plan,
-        exercises,
+        exercises: exercises.map(exercise => ({
+          ...exercise,
+          sets: exercise.sets.map(set => ({
+            ...set,
+            completedAt: set.completedAt || new Date()
+          }))
+        })),
         currentExerciseIndex,
         lastSetValues,
         startTime: startTime || new Date(),
