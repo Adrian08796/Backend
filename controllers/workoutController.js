@@ -22,10 +22,12 @@ exports.getLastWorkoutForPlan = async (req, res) => {
   }
 };
 
-exports.createWorkout = async (req, res) => {
+// controllers/workoutController.js
+
+exports.createWorkout = async (req, res, next) => {
   try {
     console.log('Received workout data:', JSON.stringify(req.body, null, 2));
-    const { plan, planName, exercises, startTime, endTime } = req.body;
+    const { plan, planName, exercises, startTime, endTime, progression } = req.body;
     
     if (!planName || !exercises || !startTime || !endTime) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -48,7 +50,8 @@ exports.createWorkout = async (req, res) => {
         completedAt: new Date(exercise.completedAt)
       })),
       startTime: new Date(startTime),
-      endTime: new Date(endTime)
+      endTime: new Date(endTime),
+      progression: Math.min(progression, 100) // Ensure progression is capped at 100%
     });
 
     console.log('New workout object:', JSON.stringify(newWorkout, null, 2));
