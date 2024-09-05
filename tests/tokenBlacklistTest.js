@@ -1,6 +1,9 @@
+// tests/tokenBlacklistTest.js
+
 const axios = require('axios');
 
-const API_URL = 'http://localhost:4500/api'; // Adjust this to your server URL
+// const API_URL = 'https://walrus-app-lqhsg.ondigitalocean.app/backend';
+const API_URL = 'http://192.168.178.42:4500/api';
 let accessToken, refreshToken, oldRefreshToken;
 
 async function testTokenBlacklisting() {
@@ -69,40 +72,40 @@ async function testTokenBlacklisting() {
     console.log('New refresh token:', refreshToken);
 
     // Step 7: Refresh token
-console.log('\n7. Refreshing token...');
-try {
-  oldRefreshToken = refreshToken;
-  const refreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
-  console.log('Refresh response:', refreshResponse.data);
-  refreshToken = refreshResponse.data.refreshToken;
-  accessToken = refreshResponse.data.accessToken;
-  console.log('Token refreshed successfully');
-  console.log('New refresh token:', refreshToken);
-  console.log('Old refresh token:', oldRefreshToken);
+    console.log('\n7. Refreshing token...');
+    try {
+      oldRefreshToken = refreshToken;
+      const refreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
+      console.log('Refresh response:', refreshResponse.data);
+      refreshToken = refreshResponse.data.refreshToken;
+      accessToken = refreshResponse.data.accessToken;
+      console.log('Token refreshed successfully');
+      console.log('New refresh token:', refreshToken);
+      console.log('Old refresh token:', oldRefreshToken);
 
-  // Add a small delay to ensure the server has time to process the token refresh
-  await new Promise(resolve => setTimeout(resolve, 1000));
+      // Add a small delay to ensure the server has time to process the token refresh
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-} catch (error) {
-  console.error('Error refreshing token:', error.response ? error.response.data : error.message);
-  throw error;
-}
+    } catch (error) {
+      console.error('Error refreshing token:', error.response ? error.response.data : error.message);
+      throw error;
+    }
 
-// Step 8: Try to use old refresh token
-console.log('\n8. Trying to use old refresh token...');
-try {
-  const oldRefreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken: oldRefreshToken });
-  console.log('ERROR: Old refresh token should not be usable');
-  console.log('Unexpected response:', oldRefreshResponse.data);
-  throw new Error('Old refresh token was accepted when it should have been rejected');
-} catch (error) {
-  if (error.response && error.response.status === 401) {
-    console.log('Test passed: Old refresh token correctly rejected');
-  } else {
-    console.error('Unexpected error when using old refresh token:', error.response ? error.response.data : error.message);
-    throw error;
-  }
-}
+    // Step 8: Try to use old refresh token
+    console.log('\n8. Trying to use old refresh token...');
+    try {
+      const oldRefreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken: oldRefreshToken });
+      console.log('ERROR: Old refresh token should not be usable');
+      console.log('Unexpected response:', oldRefreshResponse.data);
+      throw new Error('Old refresh token was accepted when it should have been rejected');
+    } catch (error) {
+      if (error.response && error.response.status === 401) {
+        console.log('Test passed: Old refresh token correctly rejected');
+      } else {
+        console.error('Unexpected error when using old refresh token:', error.response ? error.response.data : error.message);
+        throw error;
+      }
+    }
 
     console.log('\nAll token blacklisting tests completed successfully');
 
@@ -112,17 +115,3 @@ try {
 }
 
 testTokenBlacklisting();
-
-// Run the test script with the command:
-// node tests/tokenBlacklistTest.js
-// This script performs the following steps:
-// 1. Logs in with a valid username and password to receive access and refresh tokens.
-// 2. Accesses a protected route using the access token.
-// 3. Logs out, invalidating the access and refresh tokens.
-// 4. Attempts to access the protected route and refresh the token after logout, which should fail.
-// 5. Logs in again to receive new tokens.
-// 6. Refreshes the token to receive a new refresh token.
-// 7. Attempts to use the old refresh token, which should be blacklisted.
-// 8. Verifies that the old refresh token is indeed blacklisted.
-// The script outputs the results of each step and whether the tests passed or failed.
-// This test helps ensure that the token blacklisting mechanism in your authentication system is working correctly.
