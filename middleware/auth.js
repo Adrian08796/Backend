@@ -1,8 +1,11 @@
 // middleware/auth.js
 
+// middleware/auth.js
+
 const jwt = require('jsonwebtoken');
 const CustomError = require('../utils/customError');
 const User = require('../models/User');
+const TokenBlacklist = require('../models/TokenBlacklist');
 
 module.exports = async function(req, res, next) {
   const token = req.header('x-auth-token');
@@ -13,6 +16,12 @@ module.exports = async function(req, res, next) {
   }
 
   try {
+    // Check if the token is blacklisted
+    const blacklistedToken = await TokenBlacklist.findOne({ token });
+    if (blacklistedToken) {
+      return next(new CustomError('Token is blacklisted', 401));
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
     console.log('Decoded token:', decoded);
     
