@@ -186,7 +186,7 @@ router.get('/user', auth, async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
     console.log('User data fetched successfully:', user.username);
-    res.json(user);
+    res.json({ ...user.toObject(), id: user._id });
   } catch (error) {
     console.error('Error fetching user:', error);
     next(new CustomError('Error fetching user', 500));
