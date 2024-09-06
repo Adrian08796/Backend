@@ -133,12 +133,16 @@ router.post('/:id/share', async (req, res, next) => {
 });
 
 // Import a shared workout plan
-router.post('/import/:shareId', async (req, res, next) => {
+router.post('/import/:shareId', auth, async (req, res, next) => {
   try {
+    console.log('Importing workout plan with shareId:', req.params.shareId);
     const sharedPlan = await WorkoutPlan.findOne({ shareId: req.params.shareId }).populate('exercises');
     if (!sharedPlan) {
+      console.log('Shared workout plan not found');
       return next(new CustomError('Shared workout plan not found', 404));
     }
+
+    console.log('Found shared plan:', sharedPlan);
 
     const newExercises = await Promise.all(sharedPlan.exercises.map(async (exercise) => {
       const existingExercise = await Exercise.findOne({ name: exercise.name, user: req.user.id });
@@ -165,9 +169,11 @@ router.post('/import/:shareId', async (req, res, next) => {
     });
 
     const savedPlan = await newPlan.save();
+    console.log('Imported plan saved:', savedPlan);
     res.status(201).json(savedPlan);
   } catch (err) {
-    next(new CustomError('Error importing workout plan', 500));
+    console.error('Error importing workout plan:', err);
+    next(new CustomError('Error importing workout plan: ' + err.message, 500));
   }
 });
 
