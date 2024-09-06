@@ -6,6 +6,7 @@ const WorkoutPlan = require('../models/WorkoutPlan');
 const Exercise = require('../models/Exercise');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
+const crypto = require('crypto');
 
 router.use(auth);
 
@@ -108,6 +109,65 @@ router.delete('/:id', async (req, res, next) => {
     res.json({ message: 'Workout plan deleted successfully' });
   } catch (err) {
     next(new CustomError('Error deleting workout plan', 500));
+  }
+});
+
+// Generate a share link for a workout plan
+router.post('/:id/share', async (req, res, next) => {
+  try {
+    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
+    if (!plan) {
+      return next(new CustomError('Workout plan not found', 404));
+    }
+
+    if (!plan.shareId) {
+      plan.shareId = crypto.randomBytes(8).toString('hex');
+    }
+    plan.isShared = true;
+    await plan.save();
+
+    res.json({ shareLink: `${process.env.FRONTEND_URL}/import/${plan.shareId}` });
+  } catch (err) {
+    next(new CustomError('Error sharing workout plan', 500));
+  }
+});
+
+// Import a shared workout plan
+router.post('/import/:shareId', async (req, res, next) => {
+  try {
+    const sharedPlan = await WorkoutPlan.findOne({ shareId: req.params.shareId }).populate('exercises');
+    if (!sharedPlan) {
+      return next(new CustomError('Shared workout plan not found', 404));
+    }
+
+    const newExercises = await Promise.all(sharedPlan.exercises.map(async (exercise) => {
+      const existingExercise = await Exercise.findOne({ name: exercise.name, user: req.user.id });
+      if (existingExercise) {
+        return existingExercise._id;
+      } else {
+        const newExercise = new Exercise({
+          ...exercise.toObject(),
+          _id: undefined,
+          user: req.user.id
+        });
+        const savedExercise = await newExercise.save();
+        return savedExercise._id;
+      }
+    }));
+
+    const newPlan = new WorkoutPlan({
+      ...sharedPlan.toObject(),
+      _id: undefined,
+      user: req.user.id,
+      exercises: newExercises,
+      isShared: false,
+      shareId: undefined
+    });
+
+    const savedPlan = await newPlan.save();
+    res.status(201).json(savedPlan);
+  } catch (err) {
+    next(new CustomError('Error importing workout plan', 500));
   }
 });
 

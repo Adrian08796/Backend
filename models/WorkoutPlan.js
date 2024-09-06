@@ -24,6 +24,15 @@ const WorkoutPlanSchema = new mongoose.Schema({
     type: String,
     enum: ['strength', 'cardio', 'flexibility', 'other'],
     default: 'other'
+  },
+  shareId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  isShared: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
