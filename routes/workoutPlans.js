@@ -4,9 +4,9 @@ const express = require('express');
 const router = express.Router();
 const WorkoutPlan = require('../models/WorkoutPlan');
 const Exercise = require('../models/Exercise');
+const User = require('../models/User');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
-const crypto = require('crypto');
 
 router.use(auth);
 
@@ -136,7 +136,7 @@ router.post('/:id/share', async (req, res, next) => {
 router.post('/import/:shareId', auth, async (req, res, next) => {
   try {
     console.log('Importing workout plan with shareId:', req.params.shareId);
-    const sharedPlan = await WorkoutPlan.findOne({ shareId: req.params.shareId }).populate('exercises');
+    const sharedPlan = await WorkoutPlan.findOne({ shareId: req.params.shareId }).populate('exercises').populate('user', 'username');
     if (!sharedPlan) {
       console.log('Shared workout plan not found');
       return next(new CustomError('Shared workout plan not found', 404));
@@ -152,7 +152,12 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
         const newExercise = new Exercise({
           ...exercise.toObject(),
           _id: undefined,
-          user: req.user.id
+          user: req.user.id,
+          importedFrom: {
+            user: sharedPlan.user._id,
+            username: sharedPlan.user.username,
+            importDate: new Date()
+          }
         });
         const savedExercise = await newExercise.save();
         return savedExercise._id;
@@ -165,7 +170,12 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
       user: req.user.id,
       exercises: newExercises,
       isShared: false,
-      shareId: undefined
+      shareId: undefined,
+      importedFrom: {
+        user: sharedPlan.user._id,
+        username: sharedPlan.user.username,
+        importDate: new Date()
+      }
     });
 
     const savedPlan = await newPlan.save();
