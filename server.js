@@ -14,8 +14,7 @@ require('newrelic');
 // Middleware
 
 app.use(cors({
-  // origin: process.env.DEV_ORIGIN,
-  origin: process.env.PROD_ORIGIN, 
+  origin: [process.env.DEV_ORIGIN, process.env.PROD_ORIGIN,],
   credentials: true
 }));
 app.use(express.json());
