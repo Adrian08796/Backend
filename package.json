@@ -4,9 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon server.js",
+    "start": "NODE_ENV=production nodemon server.js",
     "start:monitor": "nodemon -r newrelic server.js",
-    "dev": "nodemon server.js"
+    "dev": "NODE_ENV=development nodemon server.js"
   },
   "keywords": [],
   "author": "",
