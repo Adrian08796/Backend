@@ -115,3 +115,17 @@ async function testTokenBlacklisting() {
 }
 
 testTokenBlacklisting();
+
+// Run this script with the command:
+// node tests/tokenBlacklistTest.js
+// This script performs the following steps:
+// Login with a user to receive an access token and a refresh token.
+// Access a protected route using the access token.
+// Logout the user, invalidating the access token.
+// Try to access the protected route again using the invalidated access token.
+// Try to refresh the token using the invalidated refresh token.
+// Login again to receive new tokens.
+// Refresh the token using the new refresh token.
+// Try to refresh the token using the old refresh token (which should be blacklisted).
+// The script will output messages indicating the success or failure of each step.
+// This can help you verify that your token blacklisting functionality is working as expected
