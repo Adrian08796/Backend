@@ -1,7 +1,5 @@
 // models/Exercise.js
 
-// models/Exercise.js
-
 const mongoose = require('mongoose');
 
 const ExerciseSchema = new mongoose.Schema({
@@ -40,26 +38,26 @@ const ExerciseSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Exercise type is required'],
     enum: ['strength', 'cardio'],
-    validate: {
-      validator: function(v) {
-        if (this.category === 'Strength') return v === 'strength';
-        if (this.category === 'Cardio') return v === 'cardio';
-        return true; // For Flexibility, we don't strictly enforce a type
-      },
-      message: 'Exercise type must match the category'
-    }
   },
   measurementType: {
     type: String,
     required: [true, 'Measurement type is required'],
     enum: ['weight_reps', 'duration', 'distance', 'intensity', 'incline'],
-    validate: {
-      validator: function(v) {
-        if (this.category === 'Strength') return v === 'weight_reps';
-        if (this.category === 'Cardio') return ['duration', 'distance', 'intensity', 'incline'].includes(v);
-        return true; // For Flexibility, we don't strictly enforce a measurement type
-      },
-      message: 'Measurement type must be appropriate for the exercise category'
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  importedFrom: {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    username: String,
+    importDate: {
+      type: Date,
+      default: Date.now
     }
   }
 }, {
