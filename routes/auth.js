@@ -193,6 +193,73 @@ router.get('/user', auth, async (req, res, next) => {
   }
 });
 
+// Update user route
+router.put('/user', auth, async (req, res, next) => {
+  try {
+    const { username, email } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    // Check if username is already taken
+    if (username !== user.username) {
+      const existingUser = await User.findOne({ username });
+      if (existingUser) {
+        return next(new CustomError('Username is already taken', 400));
+      }
+    }
+
+    // Check if email is already taken
+    if (email !== user.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return next(new CustomError('Email is already taken', 400));
+      }
+    }
+
+    user.username = username;
+    user.email = email;
+
+    await user.save();
+
+    res.json({
+      id: user._id,
+      username: user.username,
+      email: user.email
+    });
+  } catch (error) {
+    next(new CustomError('Error updating user: ' + error.message, 500));
+  }
+});
+
+// Change password route
+router.put('/change-password', auth, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return next(new CustomError('Current password is incorrect', 400));
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    next(new CustomError('Error changing password: ' + error.message, 500));
+  }
+});
+
 // Logout
 router.post('/logout', auth, async (req, res, next) => {
   try {
