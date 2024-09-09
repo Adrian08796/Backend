@@ -33,6 +33,18 @@ const WorkoutPlanSchema = new mongoose.Schema({
   isShared: {
     type: Boolean,
     default: false
+  },
+  importedFrom: {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    username: String,
+    importDate: {
+      type: Date,
+      default: Date.now
+    },
+    shareId: String
   }
 }, {
   timestamps: true
