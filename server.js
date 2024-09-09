@@ -11,8 +11,10 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 require('newrelic');
 
-// Middleware
+// Import auth middleware
+const auth = require('./middleware/auth');
 
+// Middleware
 app.use(cors({
   origin: [process.env.DEV_ORIGIN, process.env.PROD_ORIGIN,],
   credentials: true
@@ -38,9 +40,9 @@ const workoutPlanRoutes = require('./routes/workoutPlans');
 
 // Use routes
 app.use('/api/auth', authRoutes);
-app.use('/api/exercises', exerciseRoutes);
-app.use('/api/workouts', workoutRoutes);
-app.use('/api/workoutplans', workoutPlanRoutes);
+app.use('/api/exercises', auth, exerciseRoutes); // Apply auth middleware to exercise routes
+app.use('/api/workouts', auth, workoutRoutes); // Apply auth middleware to workout routes
+app.use('/api/workoutplans', auth, workoutPlanRoutes); // Apply auth middleware to workout plan routes
 
 // Global error handler
 app.use((err, req, res, next) => {
