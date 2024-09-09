@@ -7,6 +7,7 @@ const Exercise = require('../models/Exercise');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
+const crypto = require('crypto'); // Add this line to import the crypto module
 
 router.use(auth);
 
@@ -113,22 +114,31 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // Generate a share link for a workout plan
-router.post('/:id/share', async (req, res, next) => {
+router.post('/:id/share', auth, async (req, res, next) => {
   try {
+    console.log('Sharing workout plan with ID:', req.params.id);
     const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
+    
     if (!plan) {
+      console.log('Workout plan not found');
       return next(new CustomError('Workout plan not found', 404));
     }
 
     if (!plan.shareId) {
       plan.shareId = crypto.randomBytes(8).toString('hex');
+      console.log('Generated new shareId:', plan.shareId);
     }
+    
     plan.isShared = true;
     await plan.save();
 
-    res.json({ shareLink: `${process.env.FRONTEND_URL}/import/${plan.shareId}` });
+    const shareLink = `${process.env.FRONTEND_URL}/import/${plan.shareId}`;
+    console.log('Share link generated:', shareLink);
+    
+    res.json({ shareLink });
   } catch (err) {
-    next(new CustomError('Error sharing workout plan', 500));
+    console.error('Error sharing workout plan:', err);
+    next(new CustomError('Error sharing workout plan: ' + err.message, 500));
   }
 });
 
