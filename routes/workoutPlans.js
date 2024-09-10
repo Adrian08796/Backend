@@ -13,11 +13,12 @@ const mongoose = require('mongoose');
 router.use(auth);
 
 // Get all workout plans
-router.get('/', async (req, res, next) => {
+router.get('/', auth, async (req, res, next) => {
   try {
     const workoutPlans = await WorkoutPlan.find({ user: req.user.id })
       .populate({
         path: 'exercises',
+        match: { user: req.user.id },
         select: 'name description target imageUrl category exerciseType measurementType'
       });
     res.json(workoutPlans);
@@ -149,59 +150,34 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
   session.startTransaction();
 
   try {
-    console.log('Importing workout plan with shareId:', req.params.shareId);
     const sharedPlan = await WorkoutPlan.findOne({ shareId: req.params.shareId })
       .populate('exercises')
       .populate('user', 'username')
       .session(session);
 
     if (!sharedPlan) {
-      await session.abortTransaction();
-      session.endSession();
-      console.log('Shared workout plan not found');
-      return next(new CustomError('Shared workout plan not found', 404));
-    }
-
-    console.log('Found shared plan:', sharedPlan);
-
-    // Check if the user has already imported this plan
-    const existingImportedPlan = await WorkoutPlan.findOne({
-      user: req.user.id,
-      'importedFrom.shareId': req.params.shareId
-    }).session(session);
-
-    if (existingImportedPlan) {
-      await session.abortTransaction();
-      session.endSession();
-      console.log('User has already imported this plan');
-      return res.status(409).json({ message: 'You have already imported this workout plan' });
+      throw new CustomError('Shared workout plan not found', 404);
     }
 
     const newExercises = await Promise.all(sharedPlan.exercises.map(async (exercise) => {
-      let existingExercise = await Exercise.findOne({ name: exercise.name, user: req.user.id }).session(session);
-      if (existingExercise) {
-        return existingExercise._id;
-      } else {
-        const newExercise = new Exercise({
-          ...exercise.toObject(),
-          _id: undefined,
-          user: req.user.id,
-          importedFrom: {
-            user: sharedPlan.user._id,
-            username: sharedPlan.user.username,
-            importDate: new Date()
-          }
-        });
-        existingExercise = await newExercise.save({ session });
-        return existingExercise._id;
-      }
+      const newExercise = new Exercise({
+        ...exercise.toObject(),
+        _id: undefined,
+        user: req.user.id,
+        importedFrom: {
+          user: sharedPlan.user._id,
+          username: sharedPlan.user.username,
+          importDate: new Date()
+        }
+      });
+      return await newExercise.save({ session });
     }));
 
     const newPlan = new WorkoutPlan({
       ...sharedPlan.toObject(),
       _id: undefined,
       user: req.user.id,
-      exercises: newExercises,
+      exercises: newExercises.map(e => e._id),
       isShared: false,
       shareId: undefined,
       importedFrom: {
@@ -212,17 +188,15 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
       }
     });
 
-    const savedPlan = await newPlan.save({ session });
+    await newPlan.save({ session });
     await session.commitTransaction();
-    session.endSession();
 
-    console.log('Imported plan saved:', savedPlan);
-    res.status(201).json(savedPlan);
+    res.status(201).json(newPlan);
   } catch (err) {
     await session.abortTransaction();
+    next(err);
+  } finally {
     session.endSession();
-    console.error('Error importing workout plan:', err);
-    next(new CustomError('Error importing workout plan: ' + err.message, 500));
   }
 });
 
