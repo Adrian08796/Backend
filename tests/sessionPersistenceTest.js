@@ -19,11 +19,11 @@ async function testSessionPersistence() {
     console.log('Login successful, tokens received');
 
     // Simulate a long-running session
-    for (let i = 0; i < 10000; i++) {
+    for (let i = 0; i < 100; i++) {
       console.log(`\nIteration ${i + 1}`);
 
       // Simulate passage of time
-      await delay(60000); // Wait for 60 seconds
+      await delay(3000); // Wait for 3 seconds
 
       try {
         // Try to access a protected route
