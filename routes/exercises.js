@@ -8,9 +8,14 @@ const auth = require('../middleware/auth');
 router.use(auth);
 
 // Get all exercises
-router.get('/', async (req, res, next) => {
+router.get('/', auth, async (req, res, next) => {
   try {
-    const exercises = await Exercise.find();
+    const exercises = await Exercise.find({ 
+      $or: [
+        { user: req.user.id },
+        { user: { $exists: false } }  // This will include exercises without a user
+      ]
+    });
     res.json(exercises);
   } catch (err) {
     next(new CustomError('Error fetching exercises', 500));
