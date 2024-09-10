@@ -158,7 +158,8 @@ router.post('/progress', auth, async (req, res, next) => {
       totalPauseTime, 
       skippedPauses, 
       completedSets, 
-      totalSets 
+      totalSets,
+      __v
     } = req.body;
     
     let progress = await WorkoutProgress.findOne({ user: req.user.id });
@@ -179,6 +180,11 @@ router.post('/progress', auth, async (req, res, next) => {
       progress.skippedPauses = skippedPauses;
       progress.completedSets = completedSets;
       progress.totalSets = totalSets;
+      progress.lastUpdated = new Date();
+
+      if (__v !== undefined) {
+        progress.__v = __v;
+      }
     } else {
       // Create new progress
       progress = new WorkoutProgress({
@@ -200,16 +206,66 @@ router.post('/progress', auth, async (req, res, next) => {
         totalSets
       });
     }
-    progress.lastUpdated = new Date();
 
     // Validate the progress object before saving
     await progress.validate();
 
-    await progress.save();
-    res.json({ message: 'Progress saved successfully', progress });
+    try {
+      await progress.save();
+      res.json({ message: 'Progress saved successfully', progress });
+    } catch (saveError) {
+      if (saveError.name === 'VersionError') {
+        res.status(409).json({ message: 'Data is out of sync. Please refresh and try again.' });
+      } else {
+        throw saveError;
+      }
+    }
   } catch (error) {
     console.error('Error saving progress:', error);
     next(new CustomError('Error saving progress: ' + error.message, 500));
+  }
+});
+
+router.post('/progress/new', auth, async (req, res, next) => {
+  try {
+    const { 
+      plan, 
+      exercises, 
+      currentExerciseIndex, 
+      lastSetValues, 
+      startTime, 
+      totalPauseTime, 
+      skippedPauses, 
+      completedSets, 
+      totalSets 
+    } = req.body;
+
+    const newProgress = new WorkoutProgress({
+      user: req.user.id,
+      plan,
+      exercises: exercises.map(exercise => ({
+        ...exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          completedAt: set.completedAt || new Date()
+        }))
+      })),
+      currentExerciseIndex,
+      lastSetValues,
+      startTime: startTime || new Date(),
+      totalPauseTime,
+      skippedPauses,
+      completedSets,
+      totalSets
+    });
+
+    await newProgress.validate();
+    await newProgress.save();
+
+    res.status(201).json({ message: 'New progress created successfully', progress: newProgress });
+  } catch (error) {
+    console.error('Error creating new progress:', error);
+    next(new CustomError('Error creating new progress: ' + error.message, 500));
   }
 });
 

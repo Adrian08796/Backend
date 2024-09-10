@@ -76,7 +76,12 @@ const WorkoutProgressSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  notes: [String]
+  notes: [String],
+  __v: {
+    type: Number,
+     default: 0 }
 });
+
+WorkoutProgressSchema.set('versionKey', '__v');
 
 module.exports = mongoose.model('WorkoutProgress', WorkoutProgressSchema);
