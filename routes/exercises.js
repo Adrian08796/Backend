@@ -8,9 +8,14 @@ const auth = require('../middleware/auth');
 router.use(auth);
 
 // Get all exercises
-router.get('/', async (req, res, next) => {
+router.get('/', auth, async (req, res, next) => {
   try {
-    const exercises = await Exercise.find();
+    const exercises = await Exercise.find({ 
+      $or: [
+        { user: req.user.id },
+        { user: { $exists: false } }  // This will include exercises without a user
+      ]
+    });
     res.json(exercises);
   } catch (err) {
     next(new CustomError('Error fetching exercises', 500));
@@ -18,7 +23,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Add a new exercise
-router.post('/', async (req, res, next) => {
+router.post('/', auth, async (req, res, next) => {
   try {
     const { name, description, target, imageUrl, category } = req.body;
     
@@ -29,11 +34,10 @@ router.post('/', async (req, res, next) => {
       measurementType = 'weight_reps';
     } else if (category === 'Cardio') {
       exerciseType = 'cardio';
-      measurementType = 'duration'; // Default to duration for cardio
+      measurementType = 'duration';
     } else {
-      // For Flexibility, we'll set default values
-      exerciseType = 'strength'; // or another appropriate default
-      measurementType = 'duration'; // or another appropriate default
+      exerciseType = 'strength';
+      measurementType = 'duration';
     }
 
     const newExercise = new Exercise({
@@ -43,7 +47,8 @@ router.post('/', async (req, res, next) => {
       imageUrl: imageUrl || undefined,
       category,
       exerciseType,
-      measurementType
+      measurementType,
+      user: req.user.id  // Add this line to include the user ID
     });
 
     const savedExercise = await newExercise.save();

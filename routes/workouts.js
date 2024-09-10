@@ -5,15 +5,17 @@ const router = express.Router();
 const Workout = require('../models/Workout');
 const WorkoutPlan = require('../models/WorkoutPlan');
 const WorkoutProgress = require('../models/WorkoutProgress');
+const Exercise = require('../models/Exercise');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
+const mongoose = require('mongoose');
 
 router.use(auth);
 
 // Get all workouts for the current user
 router.get('/user', async (req, res, next) => {
   try {
-    const workouts = await Workout.find({ user: req.user })
+    const workouts = await Workout.find({ user: req.user.id })
       .populate({
         path: 'plan',
         select: 'name exercises',
@@ -45,7 +47,7 @@ router.post('/', async (req, res, next) => {
     }
 
     const workout = new Workout({
-      user: req.user,
+      user: req.user.id,
       plan,
       planName,
       exercises: exercises.map(exercise => ({
@@ -82,7 +84,7 @@ router.post('/', async (req, res, next) => {
 router.get('/last/:planId', async (req, res, next) => {
   try {
     const workout = await Workout.findOne({ 
-      user: req.user, 
+      user: req.user.id, 
       plan: req.params.planId 
     })
     .sort({ startTime: -1 })
@@ -100,15 +102,34 @@ router.get('/last/:planId', async (req, res, next) => {
 });
 
 // Get exercise history
-router.get('/exercise-history/:exerciseId', async (req, res, next) => {
+router.get('/exercise-history/:exerciseId', auth, async (req, res, next) => {
   try {
     const { exerciseId } = req.params;
+    console.log(`Fetching exercise history for exerciseId: ${exerciseId}`);
+
+    if (!exerciseId || exerciseId === 'undefined') {
+      return res.status(400).json({ message: 'Invalid exercise ID provided' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(exerciseId)) {
+      return res.status(400).json({ message: 'Invalid exercise ID format' });
+    }
+
+    // Check if the exercise exists
+    const exercise = await Exercise.findById(exerciseId);
+    if (!exercise) {
+      console.log(`Exercise not found for id: ${exerciseId}`);
+      return res.status(404).json({ message: 'Exercise not found' });
+    }
+
     const workouts = await Workout.find({ 
-      user: req.user,
+      user: req.user.id,
       'exercises.exercise': exerciseId
     })
     .sort({ startTime: -1 })
     .limit(5);
+
+    console.log(`Found ${workouts.length} workouts for exercise history`);
 
     const exerciseHistory = workouts.map(workout => {
       const exerciseData = workout.exercises.find(e => e.exercise.toString() === exerciseId);
@@ -121,60 +142,157 @@ router.get('/exercise-history/:exerciseId', async (req, res, next) => {
 
     res.json(exerciseHistory);
   } catch (error) {
-    next(new CustomError('Error fetching exercise history', 500));
+    console.error('Error fetching exercise history:', error);
+    next(new CustomError(`Error fetching exercise history: ${error.message}`, 500));
   }
 });
 
-// Save progress
-router.post('/progress', async (req, res, next) => {
+router.post('/progress', auth, async (req, res, next) => {
   try {
-    const { plan, exercises, currentExerciseIndex, lastSetValues, startTime, totalPauseTime, skippedPauses } = req.body;
+    const { 
+      plan, 
+      exercises, 
+      currentExerciseIndex, 
+      lastSetValues, 
+      startTime, 
+      totalPauseTime, 
+      skippedPauses, 
+      completedSets, 
+      totalSets,
+      __v
+    } = req.body;
     
-    let progress = await WorkoutProgress.findOne({ user: req.user, plan });
+    let progress = await WorkoutProgress.findOne({ user: req.user.id });
     if (progress) {
       // Update existing progress
-      progress.exercises = exercises;
+      progress.plan = plan;
+      progress.exercises = exercises.map(exercise => ({
+        ...exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          completedAt: set.completedAt || new Date()
+        }))
+      }));
       progress.currentExerciseIndex = currentExerciseIndex;
       progress.lastSetValues = lastSetValues;
       progress.startTime = startTime || progress.startTime;
       progress.totalPauseTime = totalPauseTime;
       progress.skippedPauses = skippedPauses;
+      progress.completedSets = completedSets;
+      progress.totalSets = totalSets;
+      progress.lastUpdated = new Date();
+
+      if (__v !== undefined) {
+        progress.__v = __v;
+      }
     } else {
       // Create new progress
       progress = new WorkoutProgress({
-        user: req.user,
+        user: req.user.id,
         plan,
-        exercises,
+        exercises: exercises.map(exercise => ({
+          ...exercise,
+          sets: exercise.sets.map(set => ({
+            ...set,
+            completedAt: set.completedAt || new Date()
+          }))
+        })),
         currentExerciseIndex,
         lastSetValues,
         startTime: startTime || new Date(),
         totalPauseTime,
-        skippedPauses
+        skippedPauses,
+        completedSets,
+        totalSets
       });
     }
-    progress.lastUpdated = new Date();
-    await progress.save();
-    res.json({ message: 'Progress saved successfully', progress });
+
+    // Validate the progress object before saving
+    await progress.validate();
+
+    try {
+      await progress.save();
+      res.json({ message: 'Progress saved successfully', progress });
+    } catch (saveError) {
+      if (saveError.name === 'VersionError') {
+        res.status(409).json({ message: 'Data is out of sync. Please refresh and try again.' });
+      } else {
+        throw saveError;
+      }
+    }
   } catch (error) {
     console.error('Error saving progress:', error);
     next(new CustomError('Error saving progress: ' + error.message, 500));
   }
 });
 
-// Clear progress
-router.delete('/progress', async (req, res, next) => {
+router.post('/progress/new', auth, async (req, res, next) => {
   try {
-    await WorkoutProgress.findOneAndDelete({ user: req.user });
-    res.json({ message: 'Workout progress cleared successfully' });
+    const { 
+      plan, 
+      exercises, 
+      currentExerciseIndex, 
+      lastSetValues, 
+      startTime, 
+      totalPauseTime, 
+      skippedPauses, 
+      completedSets, 
+      totalSets 
+    } = req.body;
+
+    const newProgress = new WorkoutProgress({
+      user: req.user.id,
+      plan,
+      exercises: exercises.map(exercise => ({
+        ...exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          completedAt: set.completedAt || new Date()
+        }))
+      })),
+      currentExerciseIndex,
+      lastSetValues,
+      startTime: startTime || new Date(),
+      totalPauseTime,
+      skippedPauses,
+      completedSets,
+      totalSets
+    });
+
+    await newProgress.validate();
+    await newProgress.save();
+
+    res.status(201).json({ message: 'New progress created successfully', progress: newProgress });
   } catch (error) {
-    next(new CustomError('Error clearing workout progress', 500));
+    console.error('Error creating new progress:', error);
+    next(new CustomError('Error creating new progress: ' + error.message, 500));
   }
 });
 
-// Get active plan (progress)
-router.get('/progress', async (req, res, next) => {
+// Clear progress
+router.delete('/progress', auth, async (req, res, next) => {
   try {
-    const progress = await WorkoutProgress.findOne({ user: req.user });
+    await WorkoutProgress.findOneAndDelete({ user: req.user.id });
+    res.json({ message: 'Workout progress cleared successfully' });
+  } catch (error) {
+    console.error('Error clearing workout progress:', error);
+    next(new CustomError('Error clearing workout progress: ' + error.message, 500));
+  }
+});
+
+
+// Get active plan (progress)
+router.get('/progress', auth, async (req, res, next) => {
+  try {
+    const progress = await WorkoutProgress.findOne({ user: req.user.id })
+      .populate({
+        path: 'plan',
+        populate: {
+          path: 'exercises',
+          model: 'Exercise'
+        }
+      })
+      .populate('exercises.exercise');
     
     if (progress) {
       res.json(progress);
@@ -182,7 +300,8 @@ router.get('/progress', async (req, res, next) => {
       res.json(null);
     }
   } catch (error) {
-    next(new CustomError('Error fetching active plan', 500));
+    console.error('Error fetching active plan:', error);
+    next(new CustomError('Error fetching active plan: ' + error.message, 500));
   }
 });
 
@@ -196,7 +315,7 @@ async function getWorkout(req, res, next) {
       return next(new CustomError('Workout not found', 404));
     }
     
-    if (workout.user.toString() !== req.user) {
+    if (workout.user.toString() !== req.user.id) {
       return next(new CustomError('Not authorized to access this workout', 403));
     }
     
