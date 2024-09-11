@@ -4,6 +4,7 @@ const router = require('express').Router();
 const Exercise = require('../models/Exercise');
 const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 router.use(auth);
 
@@ -65,12 +66,19 @@ router.post('/', auth, async (req, res, next) => {
 // Get a specific exercise by ID
 router.get('/:id', async (req, res, next) => {
   try {
-    const exercise = await Exercise.findById(req.params.id);
+    const { id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid exercise ID format' });
+    }
+
+    const exercise = await Exercise.findById(id);
     if (!exercise) {
-      return next(new CustomError('Exercise not found', 404));
+      return res.status(404).json({ message: 'Exercise not found' });
     }
     res.json(exercise);
   } catch (err) {
+    console.error("Error fetching exercise:", err);
     next(new CustomError('Error fetching exercise', 500));
   }
 });
