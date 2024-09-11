@@ -15,12 +15,7 @@ router.use(auth);
 // Get all workout plans
 router.get('/', auth, async (req, res, next) => {
   try {
-    const workoutPlans = await WorkoutPlan.find({ user: req.user.id })
-      .populate({
-        path: 'exercises',
-        match: { user: req.user.id },
-        select: 'name description target imageUrl category exerciseType measurementType'
-      });
+    const workoutPlans = await WorkoutPlan.find({ user: req.user.id });
     res.json(workoutPlans);
   } catch (err) {
     next(new CustomError('Error fetching workout plans', 500));
@@ -42,7 +37,7 @@ router.post('/', async (req, res, next) => {
       type
     });
     const savedWorkoutPlan = await newWorkoutPlan.save();
-    const populatedPlan = await WorkoutPlan.findById(savedWorkoutPlan._id).populate('exercises');
+    const populatedPlan = await WorkoutPlan.findById(savedWorkoutPlan._id);
     res.status(201).json(populatedPlan);
   } catch (err) {
     next(new CustomError('Error saving workout plan', 400));
@@ -57,7 +52,7 @@ router.put('/:id', async (req, res, next) => {
       { _id: req.params.id, user: req.user.id },
       { name, exercises, scheduledDate, type },
       { new: true, runValidators: true }
-    ).populate('exercises');
+    );
     if (!updatedWorkoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }

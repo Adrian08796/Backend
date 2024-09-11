@@ -50,4 +50,21 @@ const WorkoutPlanSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add this pre-find middleware
+WorkoutPlanSchema.pre('find', function(next) {
+  this.populate({
+    path: 'exercises',
+    match: { $or: [{ user: this.getQuery().user }, { user: { $exists: false } }] }
+  });
+  next();
+});
+
+WorkoutPlanSchema.pre('findOne', function(next) {
+  this.populate({
+    path: 'exercises',
+    match: { $or: [{ user: this.getQuery().user }, { user: { $exists: false } }] }
+  });
+  next();
+});
+
 module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);
