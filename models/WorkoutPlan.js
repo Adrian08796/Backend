@@ -50,4 +50,14 @@ const WorkoutPlanSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add this pre-find middleware
+WorkoutPlanSchema.pre('find', function(next) {
+  this.populate('exercises');
+  next();
+});
+
+WorkoutPlanSchema.pre('findOne', function(next) {
+  this.populate('exercises');
+  next();
+});
 module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);

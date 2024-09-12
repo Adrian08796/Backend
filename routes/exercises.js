@@ -4,6 +4,7 @@ const router = require('express').Router();
 const Exercise = require('../models/Exercise');
 const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 router.use(auth);
 
@@ -63,15 +64,18 @@ router.post('/', auth, async (req, res, next) => {
 });
 
 // Get a specific exercise by ID
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', auth, async (req, res, next) => {
   try {
+    console.log('Fetching exercise with ID:', req.params.id);
     const exercise = await Exercise.findById(req.params.id);
     if (!exercise) {
-      return next(new CustomError('Exercise not found', 404));
+      console.log('Exercise not found for ID:', req.params.id);
+      return res.status(404).json({ message: 'Exercise not found' });
     }
     res.json(exercise);
   } catch (err) {
-    next(new CustomError('Error fetching exercise', 500));
+    console.error('Error fetching exercise:', err);
+    next(new CustomError('Error fetching exercise: ' + err.message, 500));
   }
 });
 

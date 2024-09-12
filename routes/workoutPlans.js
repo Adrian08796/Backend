@@ -12,15 +12,26 @@ const mongoose = require('mongoose');
 
 router.use(auth);
 
+// Get a specific workout plan
+router.get('/:id', auth, async (req, res, next) => {
+  try {
+    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id })
+      .populate('exercises');
+    
+    if (!plan) {
+      return next(new CustomError('Workout plan not found', 404));
+    }
+    
+    res.json(plan);
+  } catch (err) {
+    next(new CustomError('Error fetching workout plan: ' + err.message, 500));
+  }
+});
+
 // Get all workout plans
 router.get('/', auth, async (req, res, next) => {
   try {
-    const workoutPlans = await WorkoutPlan.find({ user: req.user.id })
-      .populate({
-        path: 'exercises',
-        match: { user: req.user.id },
-        select: 'name description target imageUrl category exerciseType measurementType'
-      });
+    const workoutPlans = await WorkoutPlan.find({ user: req.user.id });
     res.json(workoutPlans);
   } catch (err) {
     next(new CustomError('Error fetching workout plans', 500));
@@ -42,7 +53,7 @@ router.post('/', async (req, res, next) => {
       type
     });
     const savedWorkoutPlan = await newWorkoutPlan.save();
-    const populatedPlan = await WorkoutPlan.findById(savedWorkoutPlan._id).populate('exercises');
+    const populatedPlan = await WorkoutPlan.findById(savedWorkoutPlan._id);
     res.status(201).json(populatedPlan);
   } catch (err) {
     next(new CustomError('Error saving workout plan', 400));
@@ -57,7 +68,7 @@ router.put('/:id', async (req, res, next) => {
       { _id: req.params.id, user: req.user.id },
       { name, exercises, scheduledDate, type },
       { new: true, runValidators: true }
-    ).populate('exercises');
+    );
     if (!updatedWorkoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
@@ -118,28 +129,24 @@ router.delete('/:id', async (req, res, next) => {
 // Generate a share link for a workout plan
 router.post('/:id/share', auth, async (req, res, next) => {
   try {
-    console.log('Sharing workout plan with ID:', req.params.id);
-    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
+    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id }).populate('exercises');
     
     if (!plan) {
-      console.log('Workout plan not found');
       return next(new CustomError('Workout plan not found', 404));
     }
 
     if (!plan.shareId) {
       plan.shareId = crypto.randomBytes(8).toString('hex');
-      console.log('Generated new shareId:', plan.shareId);
     }
     
     plan.isShared = true;
+
     await plan.save();
 
     const shareLink = `${process.env.FRONTEND_URL}/import/${plan.shareId}`;
-    console.log('Share link generated:', shareLink);
     
-    res.json({ shareLink });
+    res.json({ shareLink, plan });
   } catch (err) {
-    console.error('Error sharing workout plan:', err);
     next(new CustomError('Error sharing workout plan: ' + err.message, 500));
   }
 });
@@ -160,6 +167,15 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
     }
 
     const newExercises = await Promise.all(sharedPlan.exercises.map(async (exercise) => {
+      let existingExercise = await Exercise.findOne({ 
+        name: exercise.name, 
+        user: { $in: [req.user.id, null] } 
+      }).session(session);
+
+      if (existingExercise) {
+        return existingExercise;
+      }
+
       const newExercise = new Exercise({
         ...exercise.toObject(),
         _id: undefined,
@@ -170,6 +186,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
           importDate: new Date()
         }
       });
+
       return await newExercise.save({ session });
     }));
 
@@ -189,7 +206,11 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
     });
 
     await newPlan.save({ session });
+
     await session.commitTransaction();
+
+    // Populate the exercises before sending the response
+    await newPlan.populate('exercises');
 
     res.status(201).json(newPlan);
   } catch (err) {
