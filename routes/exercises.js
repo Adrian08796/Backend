@@ -64,22 +64,18 @@ router.post('/', auth, async (req, res, next) => {
 });
 
 // Get a specific exercise by ID
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', auth, async (req, res, next) => {
   try {
-    const { id } = req.params;
-    
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid exercise ID format' });
-    }
-
-    const exercise = await Exercise.findById(id);
+    console.log('Fetching exercise with ID:', req.params.id);
+    const exercise = await Exercise.findById(req.params.id);
     if (!exercise) {
+      console.log('Exercise not found for ID:', req.params.id);
       return res.status(404).json({ message: 'Exercise not found' });
     }
     res.json(exercise);
   } catch (err) {
-    console.error("Error fetching exercise:", err);
-    next(new CustomError('Error fetching exercise', 500));
+    console.error('Error fetching exercise:', err);
+    next(new CustomError('Error fetching exercise: ' + err.message, 500));
   }
 });
 
