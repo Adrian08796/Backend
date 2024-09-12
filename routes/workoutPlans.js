@@ -129,7 +129,7 @@ router.delete('/:id', async (req, res, next) => {
 // Generate a share link for a workout plan
 router.post('/:id/share', auth, async (req, res, next) => {
   try {
-    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
+    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id }).populate('exercises');
     
     if (!plan) {
       return next(new CustomError('Workout plan not found', 404));
@@ -140,19 +140,6 @@ router.post('/:id/share', auth, async (req, res, next) => {
     }
     
     plan.isShared = true;
-
-    // If the request body contains full exercise details, update the plan
-    if (req.body.exercises && Array.isArray(req.body.exercises)) {
-      plan.exercises = req.body.exercises.map(exercise => {
-        if (typeof exercise === 'string') {
-          return exercise; // It's already an ID
-        } else if (exercise._id) {
-          return exercise._id; // Extract ID from full exercise object
-        } else {
-          throw new Error('Invalid exercise format');
-        }
-      });
-    }
 
     await plan.save();
 
@@ -180,6 +167,15 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
     }
 
     const newExercises = await Promise.all(sharedPlan.exercises.map(async (exercise) => {
+      let existingExercise = await Exercise.findOne({ 
+        name: exercise.name, 
+        user: { $in: [req.user.id, null] } 
+      }).session(session);
+
+      if (existingExercise) {
+        return existingExercise;
+      }
+
       const newExercise = new Exercise({
         ...exercise.toObject(),
         _id: undefined,
@@ -198,7 +194,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
       ...sharedPlan.toObject(),
       _id: undefined,
       user: req.user.id,
-      exercises: newExercises,
+      exercises: newExercises.map(e => e._id),
       isShared: false,
       shareId: undefined,
       importedFrom: {
@@ -212,6 +208,9 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
     await newPlan.save({ session });
 
     await session.commitTransaction();
+
+    // Populate the exercises before sending the response
+    await newPlan.populate('exercises');
 
     res.status(201).json(newPlan);
   } catch (err) {
