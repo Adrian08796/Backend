@@ -12,6 +12,22 @@ const mongoose = require('mongoose');
 
 router.use(auth);
 
+// Get a specific workout plan
+router.get('/:id', auth, async (req, res, next) => {
+  try {
+    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id })
+      .populate('exercises');
+    
+    if (!plan) {
+      return next(new CustomError('Workout plan not found', 404));
+    }
+    
+    res.json(plan);
+  } catch (err) {
+    next(new CustomError('Error fetching workout plan: ' + err.message, 500));
+  }
+});
+
 // Get all workout plans
 router.get('/', auth, async (req, res, next) => {
   try {
@@ -113,28 +129,37 @@ router.delete('/:id', async (req, res, next) => {
 // Generate a share link for a workout plan
 router.post('/:id/share', auth, async (req, res, next) => {
   try {
-    console.log('Sharing workout plan with ID:', req.params.id);
     const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
     
     if (!plan) {
-      console.log('Workout plan not found');
       return next(new CustomError('Workout plan not found', 404));
     }
 
     if (!plan.shareId) {
       plan.shareId = crypto.randomBytes(8).toString('hex');
-      console.log('Generated new shareId:', plan.shareId);
     }
     
     plan.isShared = true;
+
+    // If the request body contains full exercise details, update the plan
+    if (req.body.exercises && Array.isArray(req.body.exercises)) {
+      plan.exercises = req.body.exercises.map(exercise => {
+        if (typeof exercise === 'string') {
+          return exercise; // It's already an ID
+        } else if (exercise._id) {
+          return exercise._id; // Extract ID from full exercise object
+        } else {
+          throw new Error('Invalid exercise format');
+        }
+      });
+    }
+
     await plan.save();
 
     const shareLink = `${process.env.FRONTEND_URL}/import/${plan.shareId}`;
-    console.log('Share link generated:', shareLink);
     
-    res.json({ shareLink });
+    res.json({ shareLink, plan });
   } catch (err) {
-    console.error('Error sharing workout plan:', err);
     next(new CustomError('Error sharing workout plan: ' + err.message, 500));
   }
 });
@@ -165,6 +190,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
           importDate: new Date()
         }
       });
+
       return await newExercise.save({ session });
     }));
 
@@ -172,7 +198,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
       ...sharedPlan.toObject(),
       _id: undefined,
       user: req.user.id,
-      exercises: newExercises.map(e => e._id),
+      exercises: newExercises,
       isShared: false,
       shareId: undefined,
       importedFrom: {
@@ -184,6 +210,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
     });
 
     await newPlan.save({ session });
+
     await session.commitTransaction();
 
     res.status(201).json(newPlan);
