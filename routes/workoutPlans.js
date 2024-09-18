@@ -68,7 +68,7 @@ router.put('/:id', async (req, res, next) => {
       { _id: req.params.id, user: req.user.id },
       { name, exercises, scheduledDate, type },
       { new: true, runValidators: true }
-    );
+    ).populate('exercises');
     if (!updatedWorkoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
