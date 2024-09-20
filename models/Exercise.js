@@ -2,6 +2,24 @@
 
 const mongoose = require('mongoose');
 
+const RecommendationSchema = new mongoose.Schema({
+  weight: { 
+    type: Number, 
+    default: 0,
+    min: [0, 'Weight cannot be negative']
+  },
+  reps: { 
+    type: Number, 
+    default: 10,
+    min: [1, 'Reps must be at least 1']
+  },
+  sets: { 
+    type: Number, 
+    default: 3,
+    min: [1, 'Sets must be at least 1']
+  }
+}, { _id: false });
+
 const ExerciseSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -59,6 +77,11 @@ const ExerciseSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
+  },
+  recommendations: {
+    beginner: RecommendationSchema,
+    intermediate: RecommendationSchema,
+    advanced: RecommendationSchema
   }
 }, {
   timestamps: true

@@ -8,7 +8,12 @@ const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  activeRefreshTokens: [{ type: String }]
+  activeRefreshTokens: [{ type: String }],
+  experienceLevel: { 
+    type: String, 
+    enum: ['beginner', 'intermediate', 'advanced'], 
+    default: 'beginner' 
+  }
 });
 
 UserSchema.methods.addRefreshToken = function(token) {
