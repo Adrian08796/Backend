@@ -37,12 +37,14 @@ const authRoutes = require('./routes/auth');
 const exerciseRoutes = require('./routes/exercises');
 const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workoutPlans');
+const userRoutes = require('./routes/userRoutes');
 
 // Use routes
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', auth, exerciseRoutes); // Apply auth middleware to exercise routes
 app.use('/api/workouts', auth, workoutRoutes); // Apply auth middleware to workout routes
 app.use('/api/workoutplans', auth, workoutPlanRoutes); // Apply auth middleware to workout plan routes
+app.use('/api/users', userRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -112,3 +114,12 @@ if (isProduction) {
   // Development: Use HTTP
   startHttpServer(PORT);
 }
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    message: 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err : {}
+  });
+});
