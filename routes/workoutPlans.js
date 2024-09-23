@@ -126,6 +126,39 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// Remove an exercise from a workout plan
+router.delete('/:planId/exercises/:exerciseId', auth, async (req, res, next) => {
+  try {
+    const { planId, exerciseId } = req.params;
+    const plan = await WorkoutPlan.findOne({ _id: planId, user: req.user.id });
+
+    if (!plan) {
+      return next(new CustomError('Workout plan not found', 404));
+    }
+
+    // Check if the exercise exists in the plan
+    const exerciseIndex = plan.exercises.findIndex(ex => 
+      ex.toString() === exerciseId || ex._id.toString() === exerciseId
+    );
+
+    if (exerciseIndex === -1) {
+      return next(new CustomError('Exercise not found in the workout plan', 404));
+    }
+
+    // Remove the exercise
+    plan.exercises.splice(exerciseIndex, 1);
+    await plan.save();
+
+    // Populate the exercises field before sending the response
+    await plan.populate('exercises');
+
+    res.json(plan);
+  } catch (err) {
+    console.error('Error removing exercise from workout plan:', err);
+    next(new CustomError('Error removing exercise from workout plan', 500));
+  }
+});
+
 // Generate a share link for a workout plan
 router.post('/:id/share', auth, async (req, res, next) => {
   try {
