@@ -63,6 +63,24 @@ router.post('/', auth, async (req, res, next) => {
   }
 });
 
+// Reccomentations update route 
+router.put('/:id/recommendations', auth, async (req, res, next) => {
+  try {
+    const { level, recommendations } = req.body;
+    const updatedExercise = await Exercise.findByIdAndUpdate(
+      req.params.id,
+      { $set: { [`recommendations.${level}`]: recommendations } },
+      { new: true, runValidators: true }
+    );
+    if (!updatedExercise) {
+      return next(new CustomError('Exercise not found', 404));
+    }
+    res.json(updatedExercise);
+  } catch (err) {
+    next(new CustomError('Error updating exercise recommendations', 400));
+  }
+});
+
 // Get a specific exercise by ID
 router.get('/:id', auth, async (req, res, next) => {
   try {
