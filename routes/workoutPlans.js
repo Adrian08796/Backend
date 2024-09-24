@@ -45,24 +45,49 @@ router.get('/', auth, async (req, res, next) => {
 });
 
 // Create a new workout plan
-router.post('/', async (req, res, next) => {
+router.post('/', auth, async (req, res, next) => {
   try {
     const { name, exercises, scheduledDate, type } = req.body;
     if (!name || !exercises || !Array.isArray(exercises)) {
       return next(new CustomError('Invalid workout plan data', 400));
     }
+
+    // Check if a plan with the same name already exists for this user or as a default plan
+    const existingPlan = await WorkoutPlan.findOne({
+      $or: [
+        { name, user: req.user.id },
+        { name, isDefault: true }
+      ]
+    });
+
+    if (existingPlan) {
+      // If the plan exists and the user is an admin, update the existing plan
+      if (req.user.isAdmin) {
+        const updatedPlan = await WorkoutPlan.findByIdAndUpdate(
+          existingPlan._id,
+          { name, exercises, scheduledDate, type },
+          { new: true, runValidators: true }
+        ).populate('exercises');
+        return res.json(updatedPlan);
+      } else {
+        return next(new CustomError('A plan with this name already exists', 400));
+      }
+    }
+
+    // If no existing plan, create a new one
     const newWorkoutPlan = new WorkoutPlan({ 
       user: req.user.id,
       name, 
       exercises,
       scheduledDate,
-      type
+      type,
+      isDefault: req.user.isAdmin // Set isDefault to true for admin-created plans
     });
     const savedWorkoutPlan = await newWorkoutPlan.save();
-    const populatedPlan = await WorkoutPlan.findById(savedWorkoutPlan._id);
-    res.status(201).json(populatedPlan);
+    await savedWorkoutPlan.populate('exercises');
+    res.status(201).json(savedWorkoutPlan);
   } catch (err) {
-    next(new CustomError('Error saving workout plan', 400));
+    next(new CustomError('Error saving workout plan: ' + err.message, 400));
   }
 });
 
@@ -86,6 +111,7 @@ router.put('/:id', async (req, res, next) => {
 
 // Admin route to create a default workout plan
 router.post('/default', auth, adminAuth, async (req, res, next) => {
+  console.log('Creating default workout plan - User:', req.user);
   try {
     const { name, exercises, scheduledDate, type } = req.body;
     if (!name || !exercises || !Array.isArray(exercises)) {
@@ -97,11 +123,12 @@ router.post('/default', auth, adminAuth, async (req, res, next) => {
       scheduledDate,
       type,
       isDefault: true
+      // Note: We're not setting the user field for default plans
     });
     const savedWorkoutPlan = await newWorkoutPlan.save();
     res.status(201).json(savedWorkoutPlan);
   } catch (err) {
-    next(new CustomError('Error saving default workout plan', 400));
+    next(new CustomError('Error saving default workout plan: ' + err.message, 400));
   }
 });
 
@@ -141,15 +168,19 @@ router.post('/:id/exercises', async (req, res, next) => {
 });
 
 // Delete a workout plan
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', auth, async (req, res, next) => {
   try {
-    const workoutPlan = await WorkoutPlan.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const workoutPlan = await WorkoutPlan.findById(req.params.id);
+    
     if (!workoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
+
+    // Allow deletion of the plan regardless of who created it
+    await workoutPlan.deleteOne();
     res.json({ message: 'Workout plan deleted successfully' });
   } catch (err) {
-    next(new CustomError('Error deleting workout plan', 500));
+    next(new CustomError('Error deleting workout plan: ' + err.message, 500));
   }
 });
 

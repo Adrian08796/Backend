@@ -28,6 +28,7 @@ router.get('/', auth, async (req, res, next) => {
 
 // Admin route to create a default exercise
 router.post('/default', auth, adminAuth, async (req, res, next) => {
+  console.log('Creating default exercise - User:', req.user); // Add this log
   try {
     const { name, description, target, imageUrl, category, exerciseType, measurementType } = req.body;
     
@@ -45,7 +46,7 @@ router.post('/default', auth, adminAuth, async (req, res, next) => {
     const savedExercise = await newExercise.save();
     res.status(201).json(savedExercise);
   } catch (err) {
-    next(new CustomError('Error creating default exercise', 500));
+    next(new CustomError('Error creating default exercise: ' + err.message, 500));
   }
 });
 

@@ -47,7 +47,6 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
-// Login route
 router.post('/login', async (req, res, next) => {
   try {
     console.log('Received login request:', req.body);
@@ -81,7 +80,8 @@ router.post('/login', async (req, res, next) => {
       user: {
         id: user._id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        isAdmin: user.isAdmin // Make sure to include isAdmin
       }
     });
   } catch (error) {
