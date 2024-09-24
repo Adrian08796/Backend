@@ -82,6 +82,10 @@ const ExerciseSchema = new mongoose.Schema({
     beginner: RecommendationSchema,
     intermediate: RecommendationSchema,
     advanced: RecommendationSchema
+  },
+  isDefault: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

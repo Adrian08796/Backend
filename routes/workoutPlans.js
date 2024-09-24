@@ -7,8 +7,9 @@ const Exercise = require('../models/Exercise');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
-const crypto = require('crypto'); // Add this line to import the crypto module
+const crypto = require('crypto');
 const mongoose = require('mongoose');
+const adminAuth = require('../middleware/adminAuth');
 
 router.use(auth);
 
@@ -28,10 +29,15 @@ router.get('/:id', auth, async (req, res, next) => {
   }
 });
 
-// Get all workout plans
+// Get all workout plans including default plans
 router.get('/', auth, async (req, res, next) => {
   try {
-    const workoutPlans = await WorkoutPlan.find({ user: req.user.id });
+    const workoutPlans = await WorkoutPlan.find({ 
+      $or: [
+        { user: req.user.id },
+        { isDefault: true }
+      ]
+    });
     res.json(workoutPlans);
   } catch (err) {
     next(new CustomError('Error fetching workout plans', 500));
@@ -75,6 +81,27 @@ router.put('/:id', async (req, res, next) => {
     res.json(updatedWorkoutPlan);
   } catch (err) {
     next(new CustomError('Error updating workout plan', 400));
+  }
+});
+
+// Admin route to create a default workout plan
+router.post('/default', auth, adminAuth, async (req, res, next) => {
+  try {
+    const { name, exercises, scheduledDate, type } = req.body;
+    if (!name || !exercises || !Array.isArray(exercises)) {
+      return next(new CustomError('Invalid workout plan data', 400));
+    }
+    const newWorkoutPlan = new WorkoutPlan({ 
+      name, 
+      exercises,
+      scheduledDate,
+      type,
+      isDefault: true
+    });
+    const savedWorkoutPlan = await newWorkoutPlan.save();
+    res.status(201).json(savedWorkoutPlan);
+  } catch (err) {
+    next(new CustomError('Error saving default workout plan', 400));
   }
 });
 
