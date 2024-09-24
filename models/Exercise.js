@@ -66,7 +66,7 @@ const ExerciseSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: false
-  },
+  }, 
   importedFrom: {
     user: {
       type: mongoose.Schema.Types.ObjectId,
