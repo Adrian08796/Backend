@@ -45,6 +45,10 @@ const WorkoutPlanSchema = new mongoose.Schema({
       default: Date.now
     },
     shareId: String
+  },
+  isDefault: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

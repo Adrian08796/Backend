@@ -13,7 +13,8 @@ const UserSchema = new mongoose.Schema({
     type: String, 
     enum: ['beginner', 'intermediate', 'advanced'], 
     default: 'beginner' 
-  }
+  },
+  isAdmin: { type: Boolean, default: false }
 });
 
 UserSchema.methods.addRefreshToken = function(token) {

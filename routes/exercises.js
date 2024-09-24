@@ -1,25 +1,51 @@
 // routes/exercises.js
 
-const router = require('express').Router();
+const express = require('express');
+const router = express.Router();
 const Exercise = require('../models/Exercise');
-const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
+const adminAuth = require('../middleware/adminAuth');
+const CustomError = require('../utils/customError');
 const mongoose = require('mongoose');
 
 router.use(auth);
 
-// Get all exercises
+// Get all exercises and includes default exercises
 router.get('/', auth, async (req, res, next) => {
   try {
     const exercises = await Exercise.find({ 
       $or: [
         { user: req.user.id },
-        { user: { $exists: false } }  // This will include exercises without a user
+        { user: { $exists: false } },
+        { isDefault: true }
       ]
     });
     res.json(exercises);
   } catch (err) {
     next(new CustomError('Error fetching exercises', 500));
+  }
+});
+
+// Admin route to create a default exercise
+router.post('/default', auth, adminAuth, async (req, res, next) => {
+  try {
+    const { name, description, target, imageUrl, category, exerciseType, measurementType } = req.body;
+    
+    const newExercise = new Exercise({
+      name,
+      description,
+      target: Array.isArray(target) ? target : [target],
+      imageUrl,
+      category,
+      exerciseType,
+      measurementType,
+      isDefault: true
+    });
+
+    const savedExercise = await newExercise.save();
+    res.status(201).json(savedExercise);
+  } catch (err) {
+    next(new CustomError('Error creating default exercise', 500));
   }
 });
 
