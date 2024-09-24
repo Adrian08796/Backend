@@ -33,8 +33,10 @@ module.exports = async function(req, res, next) {
 
       req.user = {
         id: decoded.id,
-        username: user.username
+        username: user.username,
+        isAdmin: user.isAdmin // Make sure to include isAdmin
       };
+      console.log('Auth middleware - User:', req.user); // Add this log
       next();
     });
   } catch (error) {
