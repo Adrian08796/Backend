@@ -146,12 +146,13 @@ router.post('/:id/exercises', async (req, res, next) => {
       return next(new CustomError('Exercise not found', 404));
     }
 
-    const workoutPlan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id });
+    const workoutPlan = await WorkoutPlan.findOne({ _id: req.params.id });
     if (!workoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
 
-    if (workoutPlan.exercises.includes(exerciseId)) {
+    // Check if the exercise is already in the plan
+    if (workoutPlan.exercises.some(ex => ex.toString() === exerciseId)) {
       return next(new CustomError('Exercise already in the workout plan', 400));
     }
 
@@ -188,7 +189,9 @@ router.delete('/:id', auth, async (req, res, next) => {
 router.delete('/:planId/exercises/:exerciseId', auth, async (req, res, next) => {
   try {
     const { planId, exerciseId } = req.params;
-    const plan = await WorkoutPlan.findOne({ _id: planId, user: req.user.id });
+    console.log(`Attempting to remove exercise ${exerciseId} from plan ${planId}`);
+
+    const plan = await WorkoutPlan.findOne({ _id: planId });
 
     if (!plan) {
       return next(new CustomError('Workout plan not found', 404));
