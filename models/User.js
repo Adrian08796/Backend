@@ -14,7 +14,8 @@ const UserSchema = new mongoose.Schema({
     enum: ['beginner', 'intermediate', 'advanced'], 
     default: 'beginner' 
   },
-  isAdmin: { type: Boolean, default: false }
+  isAdmin: { type: Boolean, default: false },
+  deletedExercises: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' }],
 });
 
 UserSchema.methods.addRefreshToken = function(token) {

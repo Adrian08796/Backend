@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const Exercise = require('../models/Exercise');
+const User = require('../models/User');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const CustomError = require('../utils/customError');
@@ -13,22 +14,45 @@ router.use(auth);
 // Get all exercises and includes default exercises
 router.get('/', auth, async (req, res, next) => {
   try {
-    const exercises = await Exercise.find({ 
-      $or: [
-        { user: req.user.id },
-        { user: { $exists: false } },
-        { isDefault: true }
-      ]
-    });
+    console.log('GET /exercises route called');
+    console.log('User:', req.user);
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      console.log('User not found');
+      return next(new CustomError('User not found', 404));
+    }
+
+    console.log('User found:', user.username);
+    console.log('Deleted exercises:', user.deletedExercises);
+
+    let exercises;
+
+    if (user.isAdmin) {
+      console.log('Fetching all exercises (admin)');
+      exercises = await Exercise.find({});
+    } else {
+      console.log('Fetching exercises for normal user');
+      exercises = await Exercise.find({
+        $or: [
+          { user: req.user.id },
+          { isDefault: true },
+          { user: { $exists: false } } // This will include exercises without a user field (which are typically default exercises)
+        ],
+        _id: { $nin: user.deletedExercises || [] } // Exclude deleted exercises
+      });
+    }
+
+    console.log(`Fetched ${exercises.length} exercises`);
     res.json(exercises);
   } catch (err) {
-    next(new CustomError('Error fetching exercises', 500));
+    console.error('Error in GET /exercises:', err);
+    next(new CustomError('Error fetching exercises: ' + err.message, 500));
   }
 });
 
 // Admin route to create a default exercise
 router.post('/default', auth, adminAuth, async (req, res, next) => {
-  console.log('Creating default exercise - User:', req.user); // Add this log
+  console.log('Creating default exercise - User:', req.user);
   try {
     const { name, description, target, imageUrl, category, exerciseType, measurementType } = req.body;
     
@@ -55,7 +79,6 @@ router.post('/', auth, async (req, res, next) => {
   try {
     const { name, description, target, imageUrl, category } = req.body;
     
-    // Determine exerciseType and measurementType based on category
     let exerciseType, measurementType;
     if (category === 'Strength') {
       exerciseType = 'strength';
@@ -76,7 +99,7 @@ router.post('/', auth, async (req, res, next) => {
       category,
       exerciseType,
       measurementType,
-      user: req.user.id  // Add this line to include the user ID
+      user: req.user.id
     });
 
     const savedExercise = await newExercise.save();
@@ -90,7 +113,7 @@ router.post('/', auth, async (req, res, next) => {
   }
 });
 
-// Reccomentations update route 
+// Recommendations update route 
 router.put('/:id/recommendations', auth, async (req, res, next) => {
   try {
     const { level, recommendations } = req.body;
@@ -142,15 +165,34 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // Delete an exercise
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', auth, async (req, res, next) => {
   try {
-    const deletedExercise = await Exercise.findByIdAndDelete(req.params.id);
-    if (!deletedExercise) {
+    const exercise = await Exercise.findById(req.params.id);
+    
+    if (!exercise) {
       return next(new CustomError('Exercise not found', 404));
     }
-    res.json({ message: 'Exercise deleted successfully' });
-  } catch (err) {
-    next(new CustomError('Error deleting exercise', 500));
+
+    const user = await User.findById(req.user.id);
+
+    if (user.isAdmin) {
+      // Admin can permanently delete the exercise
+      await exercise.deleteOne();
+      res.json({ message: 'Exercise deleted successfully' });
+    } else if (exercise.isDefault) {
+      // Normal user "deletes" a default exercise by adding it to their deletedExercises array
+      user.deletedExercises.push(exercise._id);
+      await user.save();
+      res.json({ message: 'Exercise removed from your view' });
+    } else if (exercise.user && exercise.user.toString() === req.user.id) {
+      // Normal user deletes their own custom exercise
+      await exercise.deleteOne();
+      res.json({ message: 'Exercise deleted successfully' });
+    } else {
+      return next(new CustomError('Not authorized to delete this exercise', 403));
+    }
+  } catch (error) {
+    next(new CustomError('Error deleting exercise: ' + error.message, 500));
   }
 });
 
