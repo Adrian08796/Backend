@@ -3,21 +3,18 @@
 const mongoose = require('mongoose');
 
 const RecommendationSchema = new mongoose.Schema({
-  weight: { 
-    type: Number, 
-    default: 0,
-    min: [0, 'Weight cannot be negative']
-  },
-  reps: { 
-    type: Number, 
-    default: 10,
-    min: [1, 'Reps must be at least 1']
-  },
-  sets: { 
-    type: Number, 
-    default: 3,
-    min: [1, 'Sets must be at least 1']
-  }
+  weight: { type: Number, default: 0 },
+  reps: { type: Number, default: 0 },
+  sets: { type: Number, default: 0 },
+  duration: { type: Number }, // for cardio exercises
+  distance: { type: Number }, // for cardio exercises
+  intensity: { type: Number }, // for cardio exercises
+  incline: { type: Number }  // for cardio exercises
+}, { _id: false });
+
+const UserRecommendationSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  recommendation: RecommendationSchema
 }, { _id: false });
 
 const ExerciseSchema = new mongoose.Schema({
@@ -83,6 +80,7 @@ const ExerciseSchema = new mongoose.Schema({
     intermediate: RecommendationSchema,
     advanced: RecommendationSchema
   },
+  userRecommendations: [UserRecommendationSchema],
   isDefault: {
     type: Boolean,
     default: false

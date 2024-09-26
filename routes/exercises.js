@@ -180,6 +180,36 @@ router.get('/:id', auth, async (req, res, next) => {
   }
 });
 
+// Update user recommendation for an exercise
+router.put('/:id/user-recommendation', auth, async (req, res, next) => {
+  try {
+    const { weight, reps, sets } = req.body;
+    const exercise = await Exercise.findById(req.params.id);
+
+    if (!exercise) {
+      return next(new CustomError('Exercise not found', 404));
+    }
+
+    const userRecommendationIndex = exercise.userRecommendations.findIndex(
+      rec => rec.user.toString() === req.user.id
+    );
+
+    if (userRecommendationIndex > -1) {
+      exercise.userRecommendations[userRecommendationIndex].recommendation = { weight, reps, sets };
+    } else {
+      exercise.userRecommendations.push({
+        user: req.user.id,
+        recommendation: { weight, reps, sets }
+      });
+    }
+
+    await exercise.save();
+    res.json({ message: 'User recommendation updated successfully' });
+  } catch (error) {
+    next(new CustomError('Error updating user recommendation: ' + error.message, 500));
+  }
+});
+
 // Update an exercise
 router.put('/:id', async (req, res, next) => {
   try {
