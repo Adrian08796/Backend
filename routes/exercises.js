@@ -4,10 +4,10 @@ const express = require('express');
 const router = express.Router();
 const Exercise = require('../models/Exercise');
 const User = require('../models/User');
+const DeletedExercise = require('../models/DeletedExercise');  // Add this line
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const CustomError = require('../utils/customError');
-const mongoose = require('mongoose');
 
 router.use(auth);
 
@@ -23,22 +23,24 @@ router.get('/', auth, async (req, res, next) => {
     }
 
     console.log('User found:', user.username);
-    console.log('Deleted exercises:', user.deletedExercises);
+    console.log('Deleted exercises:', user.deletedExercises.length);
 
     let exercises;
 
     if (user.isAdmin) {
-      console.log('Fetching all exercises (admin)');
-      exercises = await Exercise.find({});
+      console.log('Fetching all non-deleted exercises (admin)');
+      exercises = await Exercise.find({
+        _id: { $nin: user.deletedExercises }
+      });
     } else {
       console.log('Fetching exercises for normal user');
       exercises = await Exercise.find({
         $or: [
           { user: req.user.id },
           { isDefault: true },
-          { user: { $exists: false } } // This will include exercises without a user field (which are typically default exercises)
+          { user: { $exists: false } }
         ],
-        _id: { $nin: user.deletedExercises || [] } // Exclude deleted exercises
+        _id: { $nin: user.deletedExercises }
       });
     }
 
@@ -47,6 +49,37 @@ router.get('/', auth, async (req, res, next) => {
   } catch (err) {
     console.error('Error in GET /exercises:', err);
     next(new CustomError('Error fetching exercises: ' + err.message, 500));
+  }
+});
+
+// Admin route to restore all deleted exercises
+router.post('/restore/:id', auth, async (req, res, next) => {
+  try {
+    const deletedExercise = await DeletedExercise.findById(req.params.id);
+
+    if (!deletedExercise) {
+      return next(new CustomError('Deleted exercise not found', 404));
+    }
+
+    if (!req.user.isAdmin && deletedExercise.deletedBy.toString() !== req.user.id) {
+      return next(new CustomError('Not authorized to restore this exercise', 403));
+    }
+
+    const restoredExercise = new Exercise(deletedExercise.exerciseData);
+    await restoredExercise.save();
+
+    if (!req.user.isAdmin) {
+      // Remove from user's deletedExercises array if not admin
+      await User.findByIdAndUpdate(req.user.id, {
+        $pull: { deletedExercises: deletedExercise.exercise }
+      });
+    }
+
+    await DeletedExercise.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Exercise restored successfully', exercise: restoredExercise });
+  } catch (error) {
+    next(new CustomError('Error restoring exercise: ' + error.message, 500));
   }
 });
 
@@ -175,24 +208,65 @@ router.delete('/:id', auth, async (req, res, next) => {
 
     const user = await User.findById(req.user.id);
 
-    if (user.isAdmin) {
-      // Admin can permanently delete the exercise
+    // Create a DeletedExercise record
+    try {
+      const deletedExercise = new DeletedExercise({
+        exercise: exercise._id,
+        exerciseData: exercise.toObject(),
+        deletedBy: user._id,
+        isDefault: exercise.isDefault || false
+      });
+
+      await deletedExercise.save();
+    } catch (error) {
+      console.error('Error saving deleted exercise:', error);
+      // Continue with the deletion process even if saving to DeletedExercise fails
+    }
+
+    // Add the exercise ID to the user's deletedExercises array
+    if (!user.deletedExercises.includes(exercise._id)) {
+      user.deletedExercises.push(exercise._id);
+    }
+
+    // Store the full exercise details in the user's document
+    if (!user.deletedExercisesDetails) {
+      user.deletedExercisesDetails = [];
+    }
+    user.deletedExercisesDetails.push({
+      exerciseId: exercise._id,
+      exerciseData: exercise.toObject(),
+      deletedAt: new Date()
+    });
+
+    await user.save();
+
+    if (user.isAdmin || (!exercise.isDefault && exercise.user && exercise.user.toString() === req.user.id)) {
+      // Admin or user deleting their own custom exercise
       await exercise.deleteOne();
       res.json({ message: 'Exercise deleted successfully' });
     } else if (exercise.isDefault) {
-      // Normal user "deletes" a default exercise by adding it to their deletedExercises array
-      user.deletedExercises.push(exercise._id);
-      await user.save();
+      // Normal user "deletes" a default exercise (it's already added to their deletedExercises array)
       res.json({ message: 'Exercise removed from your view' });
-    } else if (exercise.user && exercise.user.toString() === req.user.id) {
-      // Normal user deletes their own custom exercise
-      await exercise.deleteOne();
-      res.json({ message: 'Exercise deleted successfully' });
     } else {
       return next(new CustomError('Not authorized to delete this exercise', 403));
     }
   } catch (error) {
+    console.error('Error in delete exercise route:', error);
     next(new CustomError('Error deleting exercise: ' + error.message, 500));
+  }
+});
+
+// Route to view all deleted exercises
+router.get('/deleted', auth, async (req, res, next) => {
+  try {
+    if (!req.user.isAdmin) {
+      return next(new CustomError('Access denied', 403));
+    }
+
+    const deletedExercises = await DeletedExercise.find().sort('-deletedAt');
+    res.json(deletedExercises);
+  } catch (error) {
+    next(new CustomError('Error fetching deleted exercises: ' + error.message, 500));
   }
 });
 

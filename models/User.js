@@ -16,6 +16,11 @@ const UserSchema = new mongoose.Schema({
   },
   isAdmin: { type: Boolean, default: false },
   deletedExercises: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' }],
+  deletedExercisesDetails: [{
+    exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' },
+    exerciseData: {},
+    deletedAt: { type: Date, default: Date.now }
+  }],
 });
 
 UserSchema.methods.addRefreshToken = function(token) {
