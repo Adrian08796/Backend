@@ -3,15 +3,19 @@
 const mongoose = require('mongoose');
 
 const WorkoutPlanSchema = new mongoose.Schema({
+  name: { 
+    type: String, 
+    required: true,
+    trim: true
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: function() { return !this.isDefault; }
   },
-  name: { 
-    type: String, 
-    required: true,
-    trim: true
+  isDefault: {
+    type: Boolean,
+    default: false
   },
   exercises: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -46,13 +50,11 @@ const WorkoutPlanSchema = new mongoose.Schema({
     },
     shareId: String
   },
-  isDefault: {
-    type: Boolean,
-    default: false
-  }
 }, {
   timestamps: true
 });
+
+WorkoutPlanSchema.index({ name: 1, user: 1 }, { unique: true, partialFilterExpression: { isDefault: false } });
 
 // Pre-find middleware to populate exercises
 WorkoutPlanSchema.pre('find', function(next) {
@@ -68,15 +70,22 @@ WorkoutPlanSchema.pre('findOne', function(next) {
 // Pre-save middleware to ensure uniqueness of name for user or default plans
 WorkoutPlanSchema.pre('save', async function(next) {
   if (this.isNew || this.isModified('name')) {
-    const existingPlan = await this.constructor.findOne({
+    const query = {
+      name: this.name,
       $or: [
-        { name: this.name, user: this.user },
-        { name: this.name, isDefault: true }
+        { user: this.user },
+        { isDefault: true }
       ]
-    });
+    };
 
-    if (existingPlan && existingPlan._id.toString() !== this._id.toString()) {
-      next(new Error('A plan with this name already exists'));
+    if (!this.isNew) {
+      query._id = { $ne: this._id };
+    }
+
+    const existingPlan = await this.constructor.findOne(query);
+
+    if (existingPlan) {
+      return next(new Error('A plan with this name already exists for this user or as a default plan'));
     }
   }
   next();
