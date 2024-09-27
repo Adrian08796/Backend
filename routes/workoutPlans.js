@@ -47,46 +47,39 @@ router.get('/', auth, async (req, res, next) => {
 // Create a new workout plan
 router.post('/', auth, async (req, res, next) => {
   try {
-    const { name, exercises, scheduledDate, type } = req.body;
-    if (!name || !exercises || !Array.isArray(exercises)) {
-      return next(new CustomError('Invalid workout plan data', 400));
+    const { name, exercises, scheduledDate, type, isDefault } = req.body;
+    if (!name) {
+      return next(new CustomError('Workout plan name is required', 400));
     }
 
     // Check if a plan with the same name already exists for this user or as a default plan
     const existingPlan = await WorkoutPlan.findOne({
+      name,
       $or: [
-        { name, user: req.user.id },
-        { name, isDefault: true }
+        { user: req.user.id },
+        { isDefault: true }
       ]
     });
 
     if (existingPlan) {
-      // If the plan exists and the user is an admin, update the existing plan
-      if (req.user.isAdmin) {
-        const updatedPlan = await WorkoutPlan.findByIdAndUpdate(
-          existingPlan._id,
-          { name, exercises, scheduledDate, type },
-          { new: true, runValidators: true }
-        ).populate('exercises');
-        return res.json(updatedPlan);
-      } else {
-        return next(new CustomError('A plan with this name already exists', 400));
-      }
+      return next(new CustomError('A plan with this name already exists for this user or as a default plan', 400));
     }
 
-    // If no existing plan, create a new one
+    // Create a new plan
     const newWorkoutPlan = new WorkoutPlan({ 
       user: req.user.id,
       name, 
-      exercises,
+      exercises: exercises || [],
       scheduledDate,
       type,
-      isDefault: req.user.isAdmin // Set isDefault to true for admin-created plans
+      isDefault: req.user.isAdmin && isDefault // Only set isDefault if user is admin and explicitly requests it
     });
+
     const savedWorkoutPlan = await newWorkoutPlan.save();
     await savedWorkoutPlan.populate('exercises');
     res.status(201).json(savedWorkoutPlan);
   } catch (err) {
+    console.error('Error saving workout plan:', err);
     next(new CustomError('Error saving workout plan: ' + err.message, 400));
   }
 });
