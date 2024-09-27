@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const Exercise = require('../models/Exercise');
 const User = require('../models/User');
-const DeletedExercise = require('../models/DeletedExercise');  // Add this line
+const DeletedExercise = require('../models/DeletedExercise');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const CustomError = require('../utils/customError');
@@ -14,40 +14,40 @@ router.use(auth);
 // Get all exercises and includes default exercises
 router.get('/', auth, async (req, res, next) => {
   try {
-    console.log('GET /exercises route called');
-    console.log('User:', req.user);
     const user = await User.findById(req.user.id);
     if (!user) {
-      console.log('User not found');
       return next(new CustomError('User not found', 404));
     }
 
-    console.log('User found:', user.username);
-    console.log('Deleted exercises:', user.deletedExercises.length);
+    let exercises = await Exercise.find({
+      $or: [
+        { user: req.user.id },
+        { isDefault: true },
+        { user: { $exists: false } }
+      ],
+      _id: { $nin: user.deletedExercises }
+    });
 
-    let exercises;
+    // Merge user-specific data with exercises
+    exercises = exercises.map(exercise => {
+      const userExercise = user.userExercises.find(ue => ue.exerciseId.toString() === exercise._id.toString());
+      if (userExercise) {
+        return {
+          ...exercise.toObject(),
+          name: userExercise.name || exercise.name,
+          description: userExercise.description || exercise.description,
+          target: userExercise.target || exercise.target,
+          imageUrl: userExercise.imageUrl || exercise.imageUrl,
+          recommendations: {
+            [user.experienceLevel]: userExercise.recommendation
+          }
+        };
+      }
+      return exercise;
+    });
 
-    if (user.isAdmin) {
-      console.log('Fetching all non-deleted exercises (admin)');
-      exercises = await Exercise.find({
-        _id: { $nin: user.deletedExercises }
-      });
-    } else {
-      console.log('Fetching exercises for normal user');
-      exercises = await Exercise.find({
-        $or: [
-          { user: req.user.id },
-          { isDefault: true },
-          { user: { $exists: false } }
-        ],
-        _id: { $nin: user.deletedExercises }
-      });
-    }
-
-    console.log(`Fetched ${exercises.length} exercises`);
     res.json(exercises);
   } catch (err) {
-    console.error('Error in GET /exercises:', err);
     next(new CustomError('Error fetching exercises: ' + err.message, 500));
   }
 });
@@ -87,16 +87,17 @@ router.post('/restore/:id', auth, async (req, res, next) => {
 router.post('/default', auth, adminAuth, async (req, res, next) => {
   console.log('Creating default exercise - User:', req.user);
   try {
-    const { name, description, target, imageUrl, category, exerciseType, measurementType } = req.body;
+    const { name, description, target, imageUrl, category, exerciseType, measurementType, recommendations } = req.body;
     
     const newExercise = new Exercise({
       name,
       description,
       target: Array.isArray(target) ? target : [target],
-      imageUrl,
+      imageUrl: imageUrl || undefined,
       category,
       exerciseType,
       measurementType,
+      recommendations,
       isDefault: true
     });
 
@@ -110,7 +111,7 @@ router.post('/default', auth, adminAuth, async (req, res, next) => {
 // Add a new exercise
 router.post('/', auth, async (req, res, next) => {
   try {
-    const { name, description, target, imageUrl, category } = req.body;
+    const { name, description, target, imageUrl, category, recommendations } = req.body;
     
     let exerciseType, measurementType;
     if (category === 'Strength') {
@@ -132,10 +133,21 @@ router.post('/', auth, async (req, res, next) => {
       category,
       exerciseType,
       measurementType,
-      user: req.user.id
+      user: req.user.id,
+      recommendations: req.user.isAdmin ? recommendations : undefined
     });
 
     const savedExercise = await newExercise.save();
+
+    if (!req.user.isAdmin && recommendations) {
+      const user = await User.findById(req.user.id);
+      user.userExercises.push({
+        exerciseId: savedExercise._id,
+        recommendation: recommendations[user.experienceLevel]
+      });
+      await user.save();
+    }
+
     res.status(201).json(savedExercise);
   } catch (err) {
     if (err.name === 'ValidationError') {
@@ -143,24 +155,6 @@ router.post('/', auth, async (req, res, next) => {
       return next(new CustomError(`Validation error: ${validationErrors.join(', ')}`, 400));
     }
     next(new CustomError('Error creating exercise', 500));
-  }
-});
-
-// Recommendations update route 
-router.put('/:id/recommendations', auth, async (req, res, next) => {
-  try {
-    const { level, recommendations } = req.body;
-    const updatedExercise = await Exercise.findByIdAndUpdate(
-      req.params.id,
-      { $set: { [`recommendations.${level}`]: recommendations } },
-      { new: true, runValidators: true }
-    );
-    if (!updatedExercise) {
-      return next(new CustomError('Exercise not found', 404));
-    }
-    res.json(updatedExercise);
-  } catch (err) {
-    next(new CustomError('Error updating exercise recommendations', 400));
   }
 });
 
@@ -173,57 +167,101 @@ router.get('/:id', auth, async (req, res, next) => {
       console.log('Exercise not found for ID:', req.params.id);
       return res.status(404).json({ message: 'Exercise not found' });
     }
-    res.json(exercise);
+
+    const user = await User.findById(req.user.id);
+    const userExercise = user.userExercises.find(ue => ue.exerciseId.toString() === req.params.id);
+
+    let responseExercise;
+    if (userExercise) {
+      responseExercise = {
+        ...exercise.toObject(),
+        name: userExercise.name || exercise.name,
+        description: userExercise.description || exercise.description,
+        target: userExercise.target || exercise.target,
+        imageUrl: userExercise.imageUrl || exercise.imageUrl,
+        recommendations: {
+          [user.experienceLevel]: userExercise.recommendation || exercise.recommendations[user.experienceLevel] || {}
+        }
+      };
+    } else {
+      responseExercise = {
+        ...exercise.toObject(),
+        recommendations: {
+          [user.experienceLevel]: exercise.recommendations[user.experienceLevel] || {}
+        }
+      };
+    }
+
+    res.json(responseExercise);
   } catch (err) {
     console.error('Error fetching exercise:', err);
     next(new CustomError('Error fetching exercise: ' + err.message, 500));
   }
 });
 
-// Update user recommendation for an exercise
-router.put('/:id/user-recommendation', auth, async (req, res, next) => {
+// Update an exercise
+router.put('/:id', auth, async (req, res, next) => {
   try {
-    const { weight, reps, sets } = req.body;
     const exercise = await Exercise.findById(req.params.id);
-
     if (!exercise) {
       return next(new CustomError('Exercise not found', 404));
     }
 
-    const userRecommendationIndex = exercise.userRecommendations.findIndex(
-      rec => rec.user.toString() === req.user.id
-    );
+    const { name, description, target, imageUrl, category, exerciseType, measurementType, recommendations } = req.body;
 
-    if (userRecommendationIndex > -1) {
-      exercise.userRecommendations[userRecommendationIndex].recommendation = { weight, reps, sets };
+    if (req.user.isAdmin) {
+      // Admin can update the exercise globally
+      Object.assign(exercise, { name, description, target, imageUrl, category, exerciseType, measurementType, recommendations });
+      await exercise.save();
+      res.json(exercise);
     } else {
-      exercise.userRecommendations.push({
-        user: req.user.id,
-        recommendation: { weight, reps, sets }
-      });
-    }
+      // For normal users, update or create a user-specific exercise
+      const user = await User.findById(req.user.id);
+      let userExercise = user.userExercises.find(ue => ue.exerciseId.toString() === req.params.id);
+      
+      if (!userExercise) {
+        userExercise = {
+          exerciseId: exercise._id,
+          name: name || exercise.name,
+          description: description || exercise.description,
+          target: target || exercise.target,
+          imageUrl: imageUrl || exercise.imageUrl,
+          recommendation: recommendations?.[user.experienceLevel] || exercise.recommendations?.[user.experienceLevel] || {}
+        };
+        user.userExercises.push(userExercise);
+      } else {
+        // Update existing user exercise, preserving existing values if not provided
+        userExercise.name = name || userExercise.name;
+        userExercise.description = description || userExercise.description;
+        userExercise.target = target || userExercise.target;
+        userExercise.imageUrl = imageUrl || userExercise.imageUrl;
+        if (recommendations && recommendations[user.experienceLevel]) {
+          userExercise.recommendation = {
+            ...userExercise.recommendation,
+            ...recommendations[user.experienceLevel]
+          };
+        }
+      }
 
-    await exercise.save();
-    res.json({ message: 'User recommendation updated successfully' });
-  } catch (error) {
-    next(new CustomError('Error updating user recommendation: ' + error.message, 500));
-  }
-});
+      await user.save();
+      
+      // Combine the base exercise with user-specific data
+      const combinedExercise = {
+        ...exercise.toObject(),
+        name: userExercise.name,
+        description: userExercise.description,
+        target: userExercise.target,
+        imageUrl: userExercise.imageUrl,
+        isUserSpecific: true,
+        recommendations: {
+          [user.experienceLevel]: userExercise.recommendation
+        }
+      };
 
-// Update an exercise
-router.put('/:id', async (req, res, next) => {
-  try {
-    const { target, category, exerciseType, measurementType } = req.body;
-    if (target && !Array.isArray(target)) {
-      req.body.target = [target];
+      res.json(combinedExercise);
     }
-    const updatedExercise = await Exercise.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    if (!updatedExercise) {
-      return next(new CustomError('Exercise not found', 404));
-    }
-    res.json(updatedExercise);
   } catch (err) {
-    next(new CustomError('Error updating exercise', 400));
+    next(new CustomError('Error updating exercise: ' + err.message, 400));
   }
 });
 

@@ -12,8 +12,12 @@ const RecommendationSchema = new mongoose.Schema({
   incline: { type: Number }  // for cardio exercises
 }, { _id: false });
 
-const UserRecommendationSchema = new mongoose.Schema({
+const UserExerciseSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  name: String,
+  description: String,
+  target: [String],
+  imageUrl: String,
   recommendation: RecommendationSchema
 }, { _id: false });
 
@@ -76,11 +80,35 @@ const ExerciseSchema = new mongoose.Schema({
     }
   },
   recommendations: {
-    beginner: RecommendationSchema,
-    intermediate: RecommendationSchema,
-    advanced: RecommendationSchema
+    beginner: {
+      weight: Number,
+      reps: Number,
+      sets: Number,
+      duration: Number,
+      distance: Number,
+      intensity: Number,
+      incline: Number
+    },
+    intermediate: {
+      weight: Number,
+      reps: Number,
+      sets: Number,
+      duration: Number,
+      distance: Number,
+      intensity: Number,
+      incline: Number,
+    },
+    advanced: {
+      weight: Number,
+      reps: Number,
+      sets: Number,
+      duration: Number,
+      distance: Number,
+      intensity: Number,
+      incline: Number,
+    },
   },
-  userRecommendations: [UserRecommendationSchema],
+  userExercises: [UserExerciseSchema],
   isDefault: {
     type: Boolean,
     default: false
@@ -88,5 +116,20 @@ const ExerciseSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// You might want to add some pre-save middleware to ensure consistency
+ExerciseSchema.pre('save', function(next) {
+  if (this.isDefault) {
+    this.user = undefined; // Default exercises should not have a user
+  }
+  next();
+});
+
+// You could also add some instance methods or static methods if needed
+ExerciseSchema.methods.toJSON = function() {
+  const obj = this.toObject();
+  delete obj.__v;
+  return obj;
+};
 
 module.exports = mongoose.model('Exercise', ExerciseSchema);
