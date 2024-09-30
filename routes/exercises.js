@@ -338,4 +338,45 @@ router.get('/deleted', auth, async (req, res, next) => {
   }
 });
 
+router.put('/:id/user-recommendation', auth, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const recommendation = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    let exercise = await Exercise.findById(id);
+    if (!exercise) {
+      return next(new CustomError('Exercise not found', 404));
+    }
+
+    // Find the user-specific exercise data
+    let userExercise = user.userExercises.find(ue => ue.exerciseId.toString() === id);
+
+    if (!userExercise) {
+      // If not found, create a new one
+      userExercise = {
+        exerciseId: id,
+        recommendation: {}
+      };
+      user.userExercises.push(userExercise);
+    }
+
+    // Update the recommendation
+    userExercise.recommendation = {
+      ...userExercise.recommendation,
+      ...recommendation
+    };
+
+    await user.save();
+
+    res.json({ userRecommendation: userExercise.recommendation });
+  } catch (error) {
+    next(new CustomError('Error updating user recommendation: ' + error.message, 500));
+  }
+});
+
 module.exports = router;
