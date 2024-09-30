@@ -1,3 +1,5 @@
+// routes/auth.js
+
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -47,6 +49,7 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
+// Login
 router.post('/login', async (req, res, next) => {
   try {
     console.log('Received login request:', req.body);
@@ -81,14 +84,15 @@ router.post('/login', async (req, res, next) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        isAdmin: user.isAdmin // Make sure to include isAdmin
+        isAdmin: user.isAdmin,
+        experienceLevel: user.experienceLevel,
+        deletedWorkoutPlans: user.deletedWorkoutPlans
       }
     });
   } catch (error) {
     next(error);
   }
 });
-
 
 // Refresh token
 router.post('/refresh-token', async (req, res, next) => {
@@ -149,7 +153,7 @@ router.post('/refresh-token', async (req, res, next) => {
   }
 });
 
-// Logout route
+// Logout
 router.post('/logout', auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
@@ -184,17 +188,24 @@ router.get('/user', auth, async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
     console.log('User data fetched successfully:', user.username);
-    res.json({ ...user.toObject(), id: user._id });
+    res.json({
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      experienceLevel: user.experienceLevel,
+      deletedWorkoutPlans: user.deletedWorkoutPlans
+    });
   } catch (error) {
     console.error('Error fetching user:', error);
     next(new CustomError('Error fetching user', 500));
   }
 });
 
-// Update user route
+// Update user
 router.put('/user', auth, async (req, res, next) => {
   try {
-    const { username, email } = req.body;
+    const { username, email, experienceLevel } = req.body;
     const user = await User.findById(req.user.id);
 
     if (!user) {
@@ -219,20 +230,26 @@ router.put('/user', auth, async (req, res, next) => {
 
     user.username = username;
     user.email = email;
+    if (experienceLevel) {
+      user.experienceLevel = experienceLevel;
+    }
 
     await user.save();
 
     res.json({
       id: user._id,
       username: user.username,
-      email: user.email
+      email: user.email,
+      experienceLevel: user.experienceLevel,
+      isAdmin: user.isAdmin,
+      deletedWorkoutPlans: user.deletedWorkoutPlans
     });
   } catch (error) {
     next(new CustomError('Error updating user: ' + error.message, 500));
   }
 });
 
-// Change password route
+// Change password
 router.put('/change-password', auth, async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -255,29 +272,6 @@ router.put('/change-password', auth, async (req, res, next) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     next(new CustomError('Error changing password: ' + error.message, 500));
-  }
-});
-
-// Logout
-router.post('/logout', auth, async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return next(new CustomError('User not found', 404));
-    }
-
-    // Optionally, you can blacklist the current refresh token here
-    // This depends on how you're sending the refresh token in the request
-    const refreshToken = req.body.refreshToken;
-    if (refreshToken) {
-      user.blacklistedTokens.push(refreshToken);
-      await user.save();
-    }
-
-    res.json({ message: 'Logged out successfully' });
-  } catch (error) {
-    console.error('Error logging out:', error);
-    next(new CustomError('Error logging out', 500));
   }
 });
 
