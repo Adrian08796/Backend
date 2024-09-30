@@ -32,13 +32,14 @@ router.get('/:id', auth, async (req, res, next) => {
 // Get all workout plans including default plans
 router.get('/', auth, async (req, res, next) => {
   try {
-    const workoutPlans = await WorkoutPlan.find({ 
+    const workoutPlans = await WorkoutPlan.find({
       $or: [
         { user: req.user.id },
-        { isDefault: true }
+        { isDefault: true, _id: { $nin: req.user.deletedWorkoutPlans } }
       ]
-    });
-    res.json(workoutPlans);
+    }).populate('exercises');
+
+    res.json({ plans: workoutPlans });
   } catch (err) {
     next(new CustomError('Error fetching workout plans', 500));
   }
@@ -62,17 +63,25 @@ router.post('/', auth, async (req, res, next) => {
     });
 
     if (existingPlan) {
-      return next(new CustomError('A plan with this name already exists for this user or as a default plan', 400));
+      // Instead of returning an error, we'll update the existing plan
+      existingPlan.exercises = exercises || [];
+      existingPlan.scheduledDate = scheduledDate;
+      existingPlan.type = type;
+      existingPlan.isDefault = req.user.isAdmin && isDefault;
+
+      const updatedPlan = await existingPlan.save();
+      await updatedPlan.populate('exercises');
+      return res.status(200).json(updatedPlan);
     }
 
-    // Create a new plan
+    // If no existing plan, create a new one
     const newWorkoutPlan = new WorkoutPlan({ 
       user: req.user.id,
       name, 
       exercises: exercises || [],
       scheduledDate,
       type,
-      isDefault: req.user.isAdmin && isDefault // Only set isDefault if user is admin and explicitly requests it
+      isDefault: req.user.isAdmin && isDefault
     });
 
     const savedWorkoutPlan = await newWorkoutPlan.save();
@@ -88,14 +97,31 @@ router.post('/', auth, async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { name, exercises, scheduledDate, type } = req.body;
-    const updatedWorkoutPlan = await WorkoutPlan.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
-      { name, exercises, scheduledDate, type },
-      { new: true, runValidators: true }
-    ).populate('exercises');
-    if (!updatedWorkoutPlan) {
+    const workoutPlan = await WorkoutPlan.findById(req.params.id);
+
+    if (!workoutPlan) {
       return next(new CustomError('Workout plan not found', 404));
     }
+
+    // Check if the user has permission to edit this plan
+    if (workoutPlan.isDefault && !req.user.isAdmin) {
+      return next(new CustomError('You do not have permission to edit this plan', 403));
+    }
+
+    // If it's not a default plan, ensure the user owns it
+    if (!workoutPlan.isDefault && workoutPlan.user.toString() !== req.user.id) {
+      return next(new CustomError('You do not have permission to edit this plan', 403));
+    }
+
+    // Update the plan
+    workoutPlan.name = name;
+    workoutPlan.exercises = exercises;
+    workoutPlan.scheduledDate = scheduledDate;
+    workoutPlan.type = type;
+
+    const updatedWorkoutPlan = await workoutPlan.save();
+    await updatedWorkoutPlan.populate('exercises');
+    
     res.json(updatedWorkoutPlan);
   } catch (err) {
     next(new CustomError('Error updating workout plan', 400));
@@ -170,11 +196,60 @@ router.delete('/:id', auth, async (req, res, next) => {
       return next(new CustomError('Workout plan not found', 404));
     }
 
-    // Allow deletion of the plan regardless of who created it
-    await workoutPlan.deleteOne();
-    res.json({ message: 'Workout plan deleted successfully' });
-  } catch (err) {
-    next(new CustomError('Error deleting workout plan: ' + err.message, 500));
+    if (workoutPlan.isDefault && !req.user.isAdmin) {
+      // For normal users, just remove the plan from their view
+      await User.findByIdAndUpdate(req.user.id, {
+        $addToSet: { deletedWorkoutPlans: workoutPlan._id }
+      });
+      return res.json({ message: 'Workout plan removed from your view' });
+    }
+
+    // For admins or user's own custom plans, delete the plan
+    if (req.user.isAdmin || (!workoutPlan.isDefault && workoutPlan.user.toString() === req.user.id)) {
+      await workoutPlan.deleteOne();
+      return res.json({ message: 'Workout plan deleted successfully' });
+    }
+
+    return next(new CustomError('Not authorized to delete this workout plan', 403));
+  } catch (error) {
+    next(new CustomError('Error deleting workout plan: ' + error.message, 500));
+  }
+});
+
+// Add an exercise to a workout plan
+router.post('/:id/exercises', auth, async (req, res, next) => {
+  try {
+    const { exerciseId } = req.body;
+    if (!exerciseId) {
+      return next(new CustomError('Exercise ID is required', 400));
+    }
+
+    const workoutPlan = await WorkoutPlan.findById(req.params.id);
+    if (!workoutPlan) {
+      return next(new CustomError('Workout plan not found', 404));
+    }
+
+    // Check if the user has permission to modify this plan
+    if (workoutPlan.isDefault && !req.user.isAdmin) {
+      return next(new CustomError('You do not have permission to modify this plan', 403));
+    }
+
+    if (!workoutPlan.isDefault && workoutPlan.user.toString() !== req.user.id) {
+      return next(new CustomError('You do not have permission to modify this plan', 403));
+    }
+
+    // Check if the exercise is already in the plan
+    if (workoutPlan.exercises.includes(exerciseId)) {
+      return next(new CustomError('Exercise already in the workout plan', 400));
+    }
+
+    workoutPlan.exercises.push(exerciseId);
+    await workoutPlan.save();
+
+    const updatedPlan = await WorkoutPlan.findById(workoutPlan._id).populate('exercises');
+    res.json(updatedPlan);
+  } catch (error) {
+    next(new CustomError('Error adding exercise to workout plan: ' + error.message, 500));
   }
 });
 

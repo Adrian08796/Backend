@@ -41,6 +41,7 @@ const UserSchema = new mongoose.Schema({
     exerciseData: {},
     deletedAt: { type: Date, default: Date.now }
   }],
+  deletedWorkoutPlans: [{ type: mongoose.Schema.Types.ObjectId, ref: 'WorkoutPlan' }],
   isAdmin: { type: Boolean, default: false },  
 });
 
