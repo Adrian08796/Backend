@@ -1,6 +1,7 @@
 // models/WorkoutPlan.js
 
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const WorkoutPlanSchema = new mongoose.Schema({
   name: { 
@@ -88,6 +89,12 @@ WorkoutPlanSchema.pre('save', async function(next) {
       return next(new Error('A plan with this name already exists for this user or as a default plan'));
     }
   }
+
+  // Generate shareId if the plan is being shared and doesn't have a shareId
+  if (this.isShared && !this.shareId) {
+    this.shareId = crypto.randomBytes(8).toString('hex');
+  }
+
   next();
 });
 
@@ -105,6 +112,62 @@ WorkoutPlanSchema.statics.handlePlanDeletion = async function(planId) {
   }
 
   await plan.deleteOne();
+};
+
+// Method to generate share link
+WorkoutPlanSchema.methods.getShareLink = function(baseUrl) {
+  if (!this.isShared) {
+    throw new Error('This plan is not shared');
+  }
+  
+  // Generate shareId if it doesn't exist
+  if (!this.shareId) {
+    this.shareId = crypto.randomBytes(8).toString('hex');
+    this.save(); // Note: In production, handle this save operation properly
+  }
+  
+  return `${baseUrl}/import/${this.shareId}`;
+};
+
+// Static method to find a plan by its shareId
+WorkoutPlanSchema.statics.findByShareId = function(shareId) {
+  return this.findOne({ shareId, isShared: true }).populate('exercises');
+};
+
+// Method to create a copy of the plan for importing
+WorkoutPlanSchema.methods.createImportCopy = function(userId, username) {
+  const importedPlan = new this.constructor({
+    ...this.toObject(),
+    _id: undefined,
+    user: userId,
+    isDefault: false,
+    isShared: false,
+    shareId: undefined,
+    importedFrom: {
+      user: this.user,
+      username: username,
+      importDate: new Date(),
+      shareId: this.shareId
+    }
+  });
+  return importedPlan;
+};
+
+// Static method to find a plan by id, considering both user-specific and default plans
+WorkoutPlanSchema.statics.findPlanById = function(planId, userId) {
+  console.log('Finding plan with ID:', planId);
+  console.log('User ID:', userId);
+  
+  return this.findOne({
+    _id: planId,
+    $or: [
+      { user: userId },
+      { isDefault: true }
+    ]
+  }).populate('exercises').then(plan => {
+    console.log('Found plan:', plan);
+    return plan;
+  });
 };
 
 module.exports = mongoose.model('WorkoutPlan', WorkoutPlanSchema);

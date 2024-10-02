@@ -291,24 +291,34 @@ router.delete('/:planId/exercises/:exerciseId', auth, async (req, res, next) => 
 // Generate a share link for a workout plan
 router.post('/:id/share', auth, async (req, res, next) => {
   try {
-    const plan = await WorkoutPlan.findOne({ _id: req.params.id, user: req.user.id }).populate('exercises');
+    console.log('Sharing plan with ID:', req.params.id);
+    console.log('User ID:', req.user.id);
+
+    const plan = await WorkoutPlan.findPlanById(req.params.id, req.user.id);
     
+    console.log('Found plan:', plan);
+
     if (!plan) {
+      console.log('Plan not found');
       return next(new CustomError('Workout plan not found', 404));
     }
 
-    if (!plan.shareId) {
-      plan.shareId = crypto.randomBytes(8).toString('hex');
+    // If it's a default plan, ensure the user has permission to share it
+    if (plan.isDefault && !req.user.isAdmin) {
+      console.log('User does not have permission to share default plan');
+      return next(new CustomError('You do not have permission to share this plan', 403));
     }
-    
-    plan.isShared = true;
 
+    plan.isShared = true;
     await plan.save();
 
-    const shareLink = `${process.env.FRONTEND_URL}/import/${plan.shareId}`;
+    const shareLink = plan.getShareLink(process.env.FRONTEND_URL);
     
+    console.log('Share link generated:', shareLink);
+
     res.json({ shareLink, plan });
   } catch (err) {
+    console.error('Error in share route:', err);
     next(new CustomError('Error sharing workout plan: ' + err.message, 500));
   }
 });
@@ -319,10 +329,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
   session.startTransaction();
 
   try {
-    const sharedPlan = await WorkoutPlan.findOne({ shareId: req.params.shareId })
-      .populate('exercises')
-      .populate('user', 'username')
-      .session(session);
+    const sharedPlan = await WorkoutPlan.findByShareId(req.params.shareId).session(session);
 
     if (!sharedPlan) {
       throw new CustomError('Shared workout plan not found', 404);
@@ -343,8 +350,8 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
         _id: undefined,
         user: req.user.id,
         importedFrom: {
-          user: sharedPlan.user._id,
-          username: sharedPlan.user.username,
+          user: sharedPlan.user,
+          username: (await User.findById(sharedPlan.user).select('username')).username,
           importDate: new Date()
         }
       });
@@ -352,20 +359,9 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
       return await newExercise.save({ session });
     }));
 
-    const newPlan = new WorkoutPlan({
-      ...sharedPlan.toObject(),
-      _id: undefined,
-      user: req.user.id,
-      exercises: newExercises.map(e => e._id),
-      isShared: false,
-      shareId: undefined,
-      importedFrom: {
-        user: sharedPlan.user._id,
-        username: sharedPlan.user.username,
-        importDate: new Date(),
-        shareId: req.params.shareId
-      }
-    });
+    const importingUser = await User.findById(req.user.id).select('username');
+    const newPlan = sharedPlan.createImportCopy(req.user.id, importingUser.username);
+    newPlan.exercises = newExercises.map(e => e._id);
 
     await newPlan.save({ session });
 
