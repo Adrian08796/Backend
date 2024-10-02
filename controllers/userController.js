@@ -1,6 +1,6 @@
 // controllers/userController.js
 
-const User = require('../models/User'); // Make sure this import is correct
+const User = require('../models/User');
 
 exports.updateExperienceLevel = async (req, res) => {
   try {
