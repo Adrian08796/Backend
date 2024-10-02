@@ -5,10 +5,14 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Workout = require('../models/Workout');
+const WorkoutPlan = require('../models/WorkoutPlan');
+const Exercise = require('../models/Exercise');
 const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
 const { generateAccessToken, generateRefreshToken } = require('../utils/tokenUtils');
 const TokenBlacklist = require('../models/TokenBlacklist');
+
 
 // Registration
 router.post('/register', async (req, res, next) => {
@@ -272,6 +276,32 @@ router.put('/change-password', auth, async (req, res, next) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     next(new CustomError('Error changing password: ' + error.message, 500));
+  }
+});
+
+// Delete user account
+router.delete('/user', auth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    // Delete user's workouts
+    await Workout.deleteMany({ user: req.user.id });
+
+    // Delete user's workout plans
+    await WorkoutPlan.deleteMany({ user: req.user.id });
+
+    // Delete user's exercises
+    await Exercise.deleteMany({ user: req.user.id });
+
+    // Delete the user
+    await User.findByIdAndDelete(req.user.id);
+
+    res.json({ message: 'User account and associated data deleted successfully' });
+  } catch (error) {
+    next(new CustomError('Error deleting user account: ' + error.message, 500));
   }
 });
 
