@@ -32,10 +32,15 @@ router.get('/:id', auth, async (req, res, next) => {
 // Get all workout plans including default plans
 router.get('/', auth, async (req, res, next) => {
   try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
     const workoutPlans = await WorkoutPlan.find({
       $or: [
         { user: req.user.id },
-        { isDefault: true, _id: { $nin: req.user.deletedWorkoutPlans } }
+        { isDefault: true, _id: { $nin: user.deletedWorkoutPlans } }
       ]
     }).populate('exercises');
 
