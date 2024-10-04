@@ -338,6 +338,7 @@ router.get('/deleted', auth, async (req, res, next) => {
   }
 });
 
+// Route to update recommendation for a specific user
 router.put('/:id/user-recommendation', auth, async (req, res, next) => {
   try {
     const { id } = req.params;
