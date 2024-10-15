@@ -4,11 +4,45 @@ const mongoose = require('mongoose');
 
 const MAX_ACTIVE_REFRESH_TOKENS = 5;
 
+const UserExerciseSchema = new mongoose.Schema({
+  exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' },
+  name: String,
+  description: String,
+  target: [String],
+  imageUrl: String,
+  recommendation: {
+    weight: Number,
+    reps: Number,
+    sets: Number,
+    duration: Number,
+    distance: Number,
+    intensity: Number,
+    incline: Number
+  },
+  category: String,
+  exerciseType: String,
+  measurementType: String
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
+  activeRefreshTokens: [{ type: String }],
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  activeRefreshTokens: [{ type: String }]
+  experienceLevel: { 
+    type: String, 
+    enum: ['beginner', 'intermediate', 'advanced'], 
+    default: 'beginner' 
+  },
+  userExercises: [UserExerciseSchema],
+  deletedExercises: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' }],
+  deletedExercisesDetails: [{
+    exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' },
+    exerciseData: {},
+    deletedAt: { type: Date, default: Date.now }
+  }],
+  deletedWorkoutPlans: [{ type: mongoose.Schema.Types.ObjectId, ref: 'WorkoutPlan' }],
+  isAdmin: { type: Boolean, default: false },  
 });
 
 UserSchema.methods.addRefreshToken = function(token) {

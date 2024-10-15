@@ -22,8 +22,6 @@ exports.getLastWorkoutForPlan = async (req, res) => {
   }
 };
 
-// controllers/workoutController.js
-
 exports.createWorkout = async (req, res, next) => {
   try {
     console.log('Received workout data:', JSON.stringify(req.body, null, 2));
