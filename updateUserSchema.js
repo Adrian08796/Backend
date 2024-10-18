@@ -21,4 +21,4 @@ async function updateUserSchema() {
   }
 }
 
-updateUserSchema();
+updateUserSchema(); 
