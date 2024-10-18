@@ -36,7 +36,8 @@ router.post('/register', async (req, res, next) => {
     const user = new User({
       username,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      hasSeenGuide: false
     });
 
     await user.save();
@@ -90,6 +91,7 @@ router.post('/login', async (req, res, next) => {
         email: user.email,
         isAdmin: user.isAdmin,
         experienceLevel: user.experienceLevel,
+        hasSeenGuide: user.hasSeenGuide || false,
         deletedWorkoutPlans: user.deletedWorkoutPlans
       }
     });
@@ -182,26 +184,23 @@ router.post('/logout', auth, async (req, res, next) => {
   }
 });
 
-// Get current user
+// Get current user route
 router.get('/user', auth, async (req, res, next) => {
   try {
-    console.log('Fetching user data for user ID:', req.user.id);
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
-      console.log('User not found for ID:', req.user.id);
       return next(new CustomError('User not found', 404));
     }
-    console.log('User data fetched successfully:', user.username);
     res.json({
       id: user._id,
       username: user.username,
       email: user.email,
       isAdmin: user.isAdmin,
       experienceLevel: user.experienceLevel,
+      hasSeenGuide: user.hasSeenGuide,
       deletedWorkoutPlans: user.deletedWorkoutPlans
     });
   } catch (error) {
-    console.error('Error fetching user:', error);
     next(new CustomError('Error fetching user', 500));
   }
 });
@@ -246,7 +245,8 @@ router.put('/user', auth, async (req, res, next) => {
       email: user.email,
       experienceLevel: user.experienceLevel,
       isAdmin: user.isAdmin,
-      deletedWorkoutPlans: user.deletedWorkoutPlans
+      deletedWorkoutPlans: user.deletedWorkoutPlans,
+      hasSeenGuide: user.hasSeenGuide,
     });
   } catch (error) {
     next(new CustomError('Error updating user: ' + error.message, 500));
