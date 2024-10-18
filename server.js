@@ -8,6 +8,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const userRoutes = require('./routes/userRoutes');
 require('dotenv').config();
 require('newrelic');
 
@@ -20,6 +21,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
 
 // Verify that the JWT secrets are set
 if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
@@ -37,7 +39,6 @@ const authRoutes = require('./routes/auth');
 const exerciseRoutes = require('./routes/exercises');
 const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workoutPlans');
-const userRoutes = require('./routes/userRoutes');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -45,6 +46,7 @@ app.use('/api/exercises', auth, exerciseRoutes); // Apply auth middleware to exe
 app.use('/api/workouts', auth, workoutRoutes); // Apply auth middleware to workout routes
 app.use('/api/workoutplans', auth, workoutPlanRoutes); // Apply auth middleware to workout plan routes
 app.use('/api/users', userRoutes);
+
 
 // Global error handler
 app.use((err, req, res, next) => {
