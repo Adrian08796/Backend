@@ -171,33 +171,36 @@ router.get('/:id', auth, async (req, res, next) => {
     const user = await User.findById(req.user.id);
     const userExercise = user.userExercises.find(ue => ue.exerciseId.toString() === req.params.id);
 
-    let responseExercise;
+    let responseExercise = exercise.toObject();
+
     if (userExercise) {
       responseExercise = {
-        ...exercise.toObject(),
-        name: userExercise.name || exercise.name,
-        description: userExercise.description || exercise.description,
-        target: userExercise.target || exercise.target,
-        imageUrl: userExercise.imageUrl || exercise.imageUrl,
+        ...responseExercise,
+        name: userExercise.name || responseExercise.name,
+        description: userExercise.description || responseExercise.description,
+        target: userExercise.target || responseExercise.target,
+        imageUrl: userExercise.imageUrl || responseExercise.imageUrl,
         recommendations: {
-          [user.experienceLevel]: userExercise.recommendation || exercise.recommendations[user.experienceLevel] || {}
+          [user.experienceLevel]: userExercise.recommendation || responseExercise.recommendations[user.experienceLevel] || {}
         }
       };
     } else {
-      responseExercise = {
-        ...exercise.toObject(),
-        recommendations: {
-          [user.experienceLevel]: exercise.recommendations[user.experienceLevel] || {}
-        }
+      responseExercise.recommendations = {
+        [user.experienceLevel]: responseExercise.recommendations[user.experienceLevel] || {}
       };
     }
 
+    // Always include the base exercise recommendations for reference
+    responseExercise.baseRecommendations = exercise.recommendations;
+
+    console.log('Sending response exercise:', responseExercise);
     res.json(responseExercise);
   } catch (err) {
     console.error('Error fetching exercise:', err);
     next(new CustomError('Error fetching exercise: ' + err.message, 500));
   }
 });
+
 
 // Update an exercise
 router.put('/:id', auth, async (req, res, next) => {
