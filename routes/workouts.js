@@ -9,6 +9,7 @@ const Exercise = require('../models/Exercise');
 const auth = require('../middleware/auth');
 const CustomError = require('../utils/customError');
 const mongoose = require('mongoose');
+const User = require('../models/User');
 
 router.use(auth);
 
@@ -163,6 +164,8 @@ router.post('/progress', auth, async (req, res, next) => {
     } = req.body;
     
     let progress = await WorkoutProgress.findOne({ user: req.user.id });
+    const user = await User.findById(req.user.id);
+
     if (progress) {
       // Update existing progress
       progress.plan = plan;
@@ -207,11 +210,28 @@ router.post('/progress', auth, async (req, res, next) => {
       });
     }
 
+    // Update user recommendations
+    for (const exercise of exercises) {
+      const lastSet = exercise.sets[exercise.sets.length - 1];
+      if (lastSet) {
+        user.updateExerciseRecommendation(exercise.exercise, {
+          weight: lastSet.weight,
+          reps: lastSet.reps,
+          sets: exercise.sets.length,
+          duration: lastSet.duration,
+          distance: lastSet.distance,
+          intensity: lastSet.intensity,
+          incline: lastSet.incline
+        });
+      }
+    }
+
     // Validate the progress object before saving
     await progress.validate();
 
     try {
       await progress.save();
+      await user.save();
       res.json({ message: 'Progress saved successfully', progress });
     } catch (saveError) {
       if (saveError.name === 'VersionError') {
@@ -225,6 +245,7 @@ router.post('/progress', auth, async (req, res, next) => {
     next(new CustomError('Error saving progress: ' + error.message, 500));
   }
 });
+
 
 router.post('/progress/new', auth, async (req, res, next) => {
   try {

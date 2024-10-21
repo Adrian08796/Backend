@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 
 const MAX_ACTIVE_REFRESH_TOKENS = 5;
 
+// Schema for user-specific exercise data
 const UserExerciseSchema = new mongoose.Schema({
   exerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exercise' },
   name: String,
@@ -24,6 +25,7 @@ const UserExerciseSchema = new mongoose.Schema({
   measurementType: String
 }, { _id: false });
 
+// Main User Schema
 const UserSchema = new mongoose.Schema({
   activeRefreshTokens: [{ type: String }],
   username: { type: String, required: true, unique: true },
@@ -47,8 +49,9 @@ const UserSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
   },
-});
+}, { timestamps: true }); // Add timestamps for createdAt and updatedAt
 
+// Method to add a new refresh token
 UserSchema.methods.addRefreshToken = function(token) {
   if (this.activeRefreshTokens.length >= MAX_ACTIVE_REFRESH_TOKENS) {
     this.activeRefreshTokens.shift(); // Remove the oldest token
@@ -56,10 +59,28 @@ UserSchema.methods.addRefreshToken = function(token) {
   this.activeRefreshTokens.push(token);
 };
 
+// Method to remove a specific refresh token
 UserSchema.methods.removeRefreshToken = function(token) {
   const index = this.activeRefreshTokens.indexOf(token);
   if (index > -1) {
     this.activeRefreshTokens.splice(index, 1);
+  }
+};
+
+// Method to update exercise recommendation
+UserSchema.methods.updateExerciseRecommendation = function(exerciseId, newRecommendation) {
+  const exerciseIndex = this.userExercises.findIndex(ex => ex.exerciseId.toString() === exerciseId.toString());
+  if (exerciseIndex !== -1) {
+    this.userExercises[exerciseIndex].recommendation = {
+      ...this.userExercises[exerciseIndex].recommendation,
+      ...newRecommendation
+    };
+  } else {
+    // If the exercise doesn't exist in userExercises, add it
+    this.userExercises.push({
+      exerciseId: exerciseId,
+      recommendation: newRecommendation
+    });
   }
 };
 
