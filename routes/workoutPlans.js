@@ -53,9 +53,25 @@ router.get('/', auth, async (req, res, next) => {
 // Create a new workout plan
 router.post('/', auth, async (req, res, next) => {
   try {
+    console.log('Received request to create workout plan:', JSON.stringify(req.body, null, 2));
     const { name, exercises, scheduledDate, type, isDefault } = req.body;
+    
     if (!name) {
       return next(new CustomError('Workout plan name is required', 400));
+    }
+
+    // Remove the check for exercises length
+
+    // Validate exercise IDs if exercises are provided
+    let exerciseIds = [];
+    if (exercises && exercises.length > 0) {
+      exerciseIds = exercises.filter(id => typeof id === 'string' && id.trim() !== '');
+      const foundExercises = await Exercise.find({ _id: { $in: exerciseIds } });
+      
+      if (foundExercises.length !== exerciseIds.length) {
+        console.log('Mismatch in exercise count. Found:', foundExercises.length, 'Expected:', exerciseIds.length);
+        return next(new CustomError('One or more exercise IDs are invalid', 400));
+      }
     }
 
     // Check if a plan with the same name already exists for this user or as a default plan
@@ -67,31 +83,32 @@ router.post('/', auth, async (req, res, next) => {
       ]
     });
 
+    let savedPlan;
     if (existingPlan) {
-      // Instead of returning an error, we'll update the existing plan
-      existingPlan.exercises = exercises || [];
+      console.log('Updating existing plan:', existingPlan._id);
+      existingPlan.exercises = exerciseIds;
       existingPlan.scheduledDate = scheduledDate;
       existingPlan.type = type;
       existingPlan.isDefault = req.user.isAdmin && isDefault;
 
-      const updatedPlan = await existingPlan.save();
-      await updatedPlan.populate('exercises');
-      return res.status(200).json(updatedPlan);
+      savedPlan = await existingPlan.save();
+    } else {
+      console.log('Creating new plan');
+      const newWorkoutPlan = new WorkoutPlan({ 
+        user: req.user.id,
+        name, 
+        exercises: exerciseIds,
+        scheduledDate,
+        type,
+        isDefault: req.user.isAdmin && isDefault
+      });
+
+      savedPlan = await newWorkoutPlan.save();
     }
 
-    // If no existing plan, create a new one
-    const newWorkoutPlan = new WorkoutPlan({ 
-      user: req.user.id,
-      name, 
-      exercises: exercises || [],
-      scheduledDate,
-      type,
-      isDefault: req.user.isAdmin && isDefault
-    });
-
-    const savedWorkoutPlan = await newWorkoutPlan.save();
-    await savedWorkoutPlan.populate('exercises');
-    res.status(201).json(savedWorkoutPlan);
+    await savedPlan.populate('exercises');
+    console.log('Saved plan:', JSON.stringify(savedPlan.toObject(), null, 2));
+    res.status(existingPlan ? 200 : 201).json(savedPlan);
   } catch (err) {
     console.error('Error saving workout plan:', err);
     next(new CustomError('Error saving workout plan: ' + err.message, 400));
@@ -101,6 +118,7 @@ router.post('/', auth, async (req, res, next) => {
 // Update a workout plan
 router.put('/:id', async (req, res, next) => {
   try {
+    console.log('Received request to update workout plan:', req.params.id, JSON.stringify(req.body, null, 2));
     const { name, exercises, scheduledDate, type } = req.body;
     const workoutPlan = await WorkoutPlan.findById(req.params.id);
 
@@ -118,18 +136,34 @@ router.put('/:id', async (req, res, next) => {
       return next(new CustomError('You do not have permission to edit this plan', 403));
     }
 
+    // Remove the check for exercises length
+
+    // Validate exercise IDs if exercises are provided
+    let exerciseIds = [];
+    if (exercises && exercises.length > 0) {
+      exerciseIds = exercises.filter(id => typeof id === 'string' && id.trim() !== '');
+      const foundExercises = await Exercise.find({ _id: { $in: exerciseIds } });
+      
+      if (foundExercises.length !== exerciseIds.length) {
+        console.log('Mismatch in exercise count. Found:', foundExercises.length, 'Expected:', exerciseIds.length);
+        return next(new CustomError('One or more exercise IDs are invalid', 400));
+      }
+    }
+
     // Update the plan
     workoutPlan.name = name;
-    workoutPlan.exercises = exercises;
+    workoutPlan.exercises = exerciseIds;
     workoutPlan.scheduledDate = scheduledDate;
     workoutPlan.type = type;
 
     const updatedWorkoutPlan = await workoutPlan.save();
     await updatedWorkoutPlan.populate('exercises');
     
+    console.log('Updated plan:', JSON.stringify(updatedWorkoutPlan.toObject(), null, 2));
     res.json(updatedWorkoutPlan);
   } catch (err) {
-    next(new CustomError('Error updating workout plan', 400));
+    console.error('Error updating workout plan:', err);
+    next(new CustomError('Error updating workout plan: ' + err.message, 400));
   }
 });
 

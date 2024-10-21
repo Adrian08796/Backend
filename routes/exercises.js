@@ -143,7 +143,8 @@ router.post('/', auth, async (req, res, next) => {
       const user = await User.findById(req.user.id);
       user.userExercises.push({
         exerciseId: savedExercise._id,
-        recommendation: recommendations[user.experienceLevel]
+        recommendation: recommendations[user.experienceLevel],
+        target: savedExercise.target
       });
       await user.save();
     }
