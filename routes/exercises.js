@@ -345,7 +345,7 @@ router.get('/deleted', auth, async (req, res, next) => {
 router.put('/:id/user-recommendation', auth, async (req, res, next) => {
   try {
     const { id } = req.params;
-    const recommendation = req.body;
+    const { weight, reps, sets, duration, distance, intensity, incline, target } = req.body;
     const user = await User.findById(req.user.id);
 
     if (!user) {
@@ -364,20 +364,29 @@ router.put('/:id/user-recommendation', auth, async (req, res, next) => {
       // If not found, create a new one
       userExercise = {
         exerciseId: id,
-        recommendation: {}
+        recommendation: {},
+        target: target || exercise.target // Use the provided target or fallback to the original exercise target
       };
       user.userExercises.push(userExercise);
+    } else {
+      // Update the target if provided
+      if (target) {
+        userExercise.target = target;
+      }
     }
 
     // Update the recommendation
     userExercise.recommendation = {
       ...userExercise.recommendation,
-      ...recommendation
+      weight, reps, sets, duration, distance, intensity, incline
     };
 
     await user.save();
 
-    res.json({ userRecommendation: userExercise.recommendation });
+    res.json({ 
+      userRecommendation: userExercise.recommendation,
+      target: userExercise.target
+    });
   } catch (error) {
     next(new CustomError('Error updating user recommendation: ' + error.message, 500));
   }
