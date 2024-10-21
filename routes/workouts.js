@@ -283,6 +283,7 @@ router.delete('/progress', auth, async (req, res, next) => {
 
 // Get active plan (progress)
 router.get('/progress', auth, async (req, res, next) => {
+  console.log("😤",req.user);
   try {
     const progress = await WorkoutProgress.findOne({ user: req.user.id })
       .populate({
@@ -293,6 +294,7 @@ router.get('/progress', auth, async (req, res, next) => {
         }
       })
       .populate('exercises.exercise');
+      console.log("😤", "PROGRESS IN BACKEND", progress);
     
     if (progress) {
       res.json(progress);
