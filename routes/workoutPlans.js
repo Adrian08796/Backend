@@ -333,7 +333,20 @@ router.post('/:id/share', auth, async (req, res, next) => {
     console.log('Sharing plan with ID:', req.params.id);
     console.log('User ID:', req.user.id);
 
-    const plan = await WorkoutPlan.findPlanById(req.params.id, req.user.id);
+    // Find and populate the plan with all exercise details
+    const plan = await WorkoutPlan.findOne({
+      _id: req.params.id,
+      $or: [
+        { user: req.user.id },
+        { isDefault: true }
+      ]
+    }).populate({
+      path: 'exercises',
+      select: '-__v',
+      populate: {
+        path: 'recommendations'
+      }
+    });
     
     console.log('Found plan:', plan);
 
@@ -348,14 +361,105 @@ router.post('/:id/share', auth, async (req, res, next) => {
       return next(new CustomError('You do not have permission to share this plan', 403));
     }
 
+    // Ensure all exercises have their full data
+    const exercisesWithFullData = await Promise.all(plan.exercises.map(async (exercise) => {
+      // Get the user's custom exercise data if it exists
+      const user = await User.findById(req.user.id);
+      const userExercise = user.userExercises.find(ue => 
+        ue.exerciseId.toString() === exercise._id.toString()
+      );
+
+      // If user has custom data for this exercise, merge it with the original
+      if (userExercise) {
+        return {
+          ...exercise.toObject(),
+          name: userExercise.name || exercise.name,
+          description: userExercise.description || exercise.description,
+          target: userExercise.target || exercise.target,
+          imageUrl: userExercise.imageUrl || exercise.imageUrl,
+          recommendations: {
+            beginner: {
+              weight: userExercise.recommendation?.weight || exercise.recommendations?.beginner?.weight || 0,
+              reps: userExercise.recommendation?.reps || exercise.recommendations?.beginner?.reps || 0,
+              sets: userExercise.recommendation?.sets || exercise.recommendations?.beginner?.sets || 3,
+              duration: userExercise.recommendation?.duration || exercise.recommendations?.beginner?.duration || 0,
+              distance: userExercise.recommendation?.distance || exercise.recommendations?.beginner?.distance || 0,
+              intensity: userExercise.recommendation?.intensity || exercise.recommendations?.beginner?.intensity || 0,
+              incline: userExercise.recommendation?.incline || exercise.recommendations?.beginner?.incline || 0
+            },
+            intermediate: {
+              weight: exercise.recommendations?.intermediate?.weight || 0,
+              reps: exercise.recommendations?.intermediate?.reps || 0,
+              sets: exercise.recommendations?.intermediate?.sets || 3,
+              duration: exercise.recommendations?.intermediate?.duration || 0,
+              distance: exercise.recommendations?.intermediate?.distance || 0,
+              intensity: exercise.recommendations?.intermediate?.intensity || 0,
+              incline: exercise.recommendations?.intermediate?.incline || 0
+            },
+            advanced: {
+              weight: exercise.recommendations?.advanced?.weight || 0,
+              reps: exercise.recommendations?.advanced?.reps || 0,
+              sets: exercise.recommendations?.advanced?.sets || 3,
+              duration: exercise.recommendations?.advanced?.duration || 0,
+              distance: exercise.recommendations?.advanced?.distance || 0,
+              intensity: exercise.recommendations?.advanced?.intensity || 0,
+              incline: exercise.recommendations?.advanced?.incline || 0
+            }
+          }
+        };
+      }
+
+      // If no custom data, return the original exercise with complete recommendations
+      return {
+        ...exercise.toObject(),
+        recommendations: {
+          beginner: {
+            weight: exercise.recommendations?.beginner?.weight || 0,
+            reps: exercise.recommendations?.beginner?.reps || 0,
+            sets: exercise.recommendations?.beginner?.sets || 3,
+            duration: exercise.recommendations?.beginner?.duration || 0,
+            distance: exercise.recommendations?.beginner?.distance || 0,
+            intensity: exercise.recommendations?.beginner?.intensity || 0,
+            incline: exercise.recommendations?.beginner?.incline || 0
+          },
+          intermediate: {
+            weight: exercise.recommendations?.intermediate?.weight || 0,
+            reps: exercise.recommendations?.intermediate?.reps || 0,
+            sets: exercise.recommendations?.intermediate?.sets || 3,
+            duration: exercise.recommendations?.intermediate?.duration || 0,
+            distance: exercise.recommendations?.intermediate?.distance || 0,
+            intensity: exercise.recommendations?.intermediate?.intensity || 0,
+            incline: exercise.recommendations?.intermediate?.incline || 0
+          },
+          advanced: {
+            weight: exercise.recommendations?.advanced?.weight || 0,
+            reps: exercise.recommendations?.advanced?.reps || 0,
+            sets: exercise.recommendations?.advanced?.sets || 3,
+            duration: exercise.recommendations?.advanced?.duration || 0,
+            distance: exercise.recommendations?.advanced?.distance || 0,
+            intensity: exercise.recommendations?.advanced?.intensity || 0,
+            incline: exercise.recommendations?.advanced?.incline || 0
+          }
+        }
+      };
+    }));
+
+    // Update the plan with the full exercise data before sharing
+    plan.exercises = exercisesWithFullData;
+
     plan.isShared = true;
     await plan.save();
 
     const shareLink = plan.getShareLink(process.env.FRONTEND_URL);
-    
     console.log('Share link generated:', shareLink);
 
-    res.json({ shareLink, plan });
+    res.json({ 
+      shareLink, 
+      plan: {
+        ...plan.toObject(),
+        exercises: exercisesWithFullData
+      }
+    });
   } catch (err) {
     console.error('Error in share route:', err);
     next(new CustomError('Error sharing workout plan: ' + err.message, 500));
@@ -368,29 +472,107 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
   session.startTransaction();
 
   try {
-    const sharedPlan = await WorkoutPlan.findByShareId(req.params.shareId).session(session);
+    const sharedPlan = await WorkoutPlan.findByShareId(req.params.shareId)
+      .populate({
+        path: 'exercises',
+        // Ensure we get all exercise fields including recommendations
+        select: '-__v'
+      })
+      .session(session);
 
     if (!sharedPlan) {
       throw new CustomError('Shared workout plan not found', 404);
     }
 
-    const newExercises = await Promise.all(sharedPlan.exercises.map(async (exercise) => {
+    // Get the sharing user's details
+    const sharingUser = await User.findById(sharedPlan.user).select('username');
+
+    const newExercises = await Promise.all(sharedPlan.exercises.map(async (originalExercise) => {
+      // First check if the exercise already exists for this user
       let existingExercise = await Exercise.findOne({ 
-        name: exercise.name, 
+        name: originalExercise.name, 
         user: { $in: [req.user.id, null] } 
       }).session(session);
 
       if (existingExercise) {
+        // If the exercise exists but was created by the current user, update it with the shared recommendations
+        if (existingExercise.user && existingExercise.user.toString() === req.user.id) {
+          existingExercise.recommendations = {
+            beginner: {
+              weight: originalExercise.recommendations?.beginner?.weight || 0,
+              reps: originalExercise.recommendations?.beginner?.reps || 0,
+              sets: originalExercise.recommendations?.beginner?.sets || 3,
+              duration: originalExercise.recommendations?.beginner?.duration || 0,
+              distance: originalExercise.recommendations?.beginner?.distance || 0,
+              intensity: originalExercise.recommendations?.beginner?.intensity || 0,
+              incline: originalExercise.recommendations?.beginner?.incline || 0
+            },
+            intermediate: {
+              weight: originalExercise.recommendations?.intermediate?.weight || 0,
+              reps: originalExercise.recommendations?.intermediate?.reps || 0,
+              sets: originalExercise.recommendations?.intermediate?.sets || 3,
+              duration: originalExercise.recommendations?.intermediate?.duration || 0,
+              distance: originalExercise.recommendations?.intermediate?.distance || 0,
+              intensity: originalExercise.recommendations?.intermediate?.intensity || 0,
+              incline: originalExercise.recommendations?.intermediate?.incline || 0
+            },
+            advanced: {
+              weight: originalExercise.recommendations?.advanced?.weight || 0,
+              reps: originalExercise.recommendations?.advanced?.reps || 0,
+              sets: originalExercise.recommendations?.advanced?.sets || 3,
+              duration: originalExercise.recommendations?.advanced?.duration || 0,
+              distance: originalExercise.recommendations?.advanced?.distance || 0,
+              intensity: originalExercise.recommendations?.advanced?.intensity || 0,
+              incline: originalExercise.recommendations?.advanced?.incline || 0
+            }
+          };
+          await existingExercise.save({ session });
+        }
         return existingExercise;
       }
 
+      // Create new exercise with complete copied data
       const newExercise = new Exercise({
-        ...exercise.toObject(),
-        _id: undefined,
+        name: originalExercise.name,
+        description: originalExercise.description,
+        target: originalExercise.target,
+        imageUrl: originalExercise.imageUrl,
+        category: originalExercise.category,
+        exerciseType: originalExercise.exerciseType,
+        measurementType: originalExercise.measurementType,
         user: req.user.id,
+        recommendations: {
+          beginner: {
+            weight: originalExercise.recommendations?.beginner?.weight || 0,
+            reps: originalExercise.recommendations?.beginner?.reps || 8,
+            sets: originalExercise.recommendations?.beginner?.sets || 3,
+            duration: originalExercise.recommendations?.beginner?.duration || 7,
+            distance: originalExercise.recommendations?.beginner?.distance || 2,
+            intensity: originalExercise.recommendations?.beginner?.intensity || 1,
+            incline: originalExercise.recommendations?.beginner?.incline || 0
+          },
+          intermediate: {
+            weight: originalExercise.recommendations?.intermediate?.weight || 0,
+            reps: originalExercise.recommendations?.intermediate?.reps || 10,
+            sets: originalExercise.recommendations?.intermediate?.sets || 3,
+            duration: originalExercise.recommendations?.intermediate?.duration || 7,
+            distance: originalExercise.recommendations?.intermediate?.distance || 2,
+            intensity: originalExercise.recommendations?.intermediate?.intensity || 1,
+            incline: originalExercise.recommendations?.intermediate?.incline || 0
+          },
+          advanced: {
+            weight: originalExercise.recommendations?.advanced?.weight || 0,
+            reps: originalExercise.recommendations?.advanced?.reps || 12,
+            sets: originalExercise.recommendations?.advanced?.sets || 4,
+            duration: originalExercise.recommendations?.advanced?.duration || 7,
+            distance: originalExercise.recommendations?.advanced?.distance || 2,
+            intensity: originalExercise.recommendations?.advanced?.intensity || 1,
+            incline: originalExercise.recommendations?.advanced?.incline || 0
+          }
+        },
         importedFrom: {
           user: sharedPlan.user,
-          username: (await User.findById(sharedPlan.user).select('username')).username,
+          username: sharingUser.username,
           importDate: new Date()
         }
       });
@@ -403,7 +585,6 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
     newPlan.exercises = newExercises.map(e => e._id);
 
     await newPlan.save({ session });
-
     await session.commitTransaction();
 
     // Populate the exercises before sending the response
