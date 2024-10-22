@@ -49,7 +49,14 @@ const UserSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
   },
-}, { timestamps: true }); // Add timestamps for createdAt and updatedAt
+  preferences: {
+    showDefaultPlans: {
+      type: Boolean,
+      default: true
+    },},
+}, { timestamps: true }
+);
+
 
 // Method to add a new refresh token
 UserSchema.methods.addRefreshToken = function(token) {

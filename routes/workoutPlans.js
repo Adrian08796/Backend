@@ -13,6 +13,39 @@ const adminAuth = require('../middleware/adminAuth');
 
 router.use(auth);
 
+// User preferences show/hide default plans
+router.put('/preferences/default-plans', auth, async (req, res, next) => {
+  try {
+    const { showDefaultPlans } = req.body;
+    
+    // Ensure preferences object exists before updating
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { 
+        $set: { 
+          'preferences.showDefaultPlans': showDefaultPlans 
+        }
+      },
+      { 
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    // Return the updated preference
+    res.json({ 
+      message: 'Preferences updated successfully',
+      showDefaultPlans: user.preferences?.showDefaultPlans ?? true
+    });
+  } catch (error) {
+    next(new CustomError('Error updating preferences: ' + error.message, 500));
+  }
+});
+
 // Get a specific workout plan
 router.get('/:id', auth, async (req, res, next) => {
   try {
@@ -37,14 +70,25 @@ router.get('/', auth, async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
 
-    const workoutPlans = await WorkoutPlan.find({
+    // Ensure preferences exists and has default value
+    const showDefaultPlans = user.preferences?.showDefaultPlans ?? true;
+
+    const query = {
       $or: [
         { user: req.user.id },
-        { isDefault: true, _id: { $nin: user.deletedWorkoutPlans } }
+        ...(showDefaultPlans ? [{ isDefault: true, _id: { $nin: user.deletedWorkoutPlans } }] : [])
       ]
-    }).populate('exercises');
+    };
 
-    res.json({ plans: workoutPlans });
+    const workoutPlans = await WorkoutPlan.find(query).populate('exercises');
+
+    // Always include preferences in the response
+    res.json({ 
+      plans: workoutPlans,
+      preferences: {
+        showDefaultPlans: user.preferences?.showDefaultPlans ?? true
+      }
+    });
   } catch (err) {
     next(new CustomError('Error fetching workout plans', 500));
   }
