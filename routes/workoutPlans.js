@@ -424,30 +424,30 @@ router.post('/:id/share', auth, async (req, res, next) => {
           recommendations: {
             beginner: {
               weight: userExercise.recommendation?.weight || exercise.recommendations?.beginner?.weight || 0,
-              reps: userExercise.recommendation?.reps || exercise.recommendations?.beginner?.reps || 0,
+              reps: userExercise.recommendation?.reps || exercise.recommendations?.beginner?.reps || 8,
               sets: userExercise.recommendation?.sets || exercise.recommendations?.beginner?.sets || 3,
-              duration: userExercise.recommendation?.duration || exercise.recommendations?.beginner?.duration || 0,
-              distance: userExercise.recommendation?.distance || exercise.recommendations?.beginner?.distance || 0,
-              intensity: userExercise.recommendation?.intensity || exercise.recommendations?.beginner?.intensity || 0,
-              incline: userExercise.recommendation?.incline || exercise.recommendations?.beginner?.incline || 0
+              duration: userExercise.recommendation?.duration || exercise.recommendations?.beginner?.duration || 7,
+              distance: userExercise.recommendation?.distance || exercise.recommendations?.beginner?.distance || 2,
+              intensity: userExercise.recommendation?.intensity || exercise.recommendations?.beginner?.intensity || 1,
+              incline: userExercise.recommendation?.incline || exercise.recommendations?.beginner?.incline || 1
             },
             intermediate: {
               weight: exercise.recommendations?.intermediate?.weight || 0,
-              reps: exercise.recommendations?.intermediate?.reps || 0,
+              reps: exercise.recommendations?.intermediate?.reps || 8,
               sets: exercise.recommendations?.intermediate?.sets || 3,
-              duration: exercise.recommendations?.intermediate?.duration || 0,
-              distance: exercise.recommendations?.intermediate?.distance || 0,
-              intensity: exercise.recommendations?.intermediate?.intensity || 0,
-              incline: exercise.recommendations?.intermediate?.incline || 0
+              duration: exercise.recommendations?.intermediate?.duration || 7,
+              distance: exercise.recommendations?.intermediate?.distance || 2,
+              intensity: exercise.recommendations?.intermediate?.intensity || 1,
+              incline: exercise.recommendations?.intermediate?.incline || 1
             },
             advanced: {
               weight: exercise.recommendations?.advanced?.weight || 0,
-              reps: exercise.recommendations?.advanced?.reps || 0,
+              reps: exercise.recommendations?.advanced?.reps || 8,
               sets: exercise.recommendations?.advanced?.sets || 3,
-              duration: exercise.recommendations?.advanced?.duration || 0,
-              distance: exercise.recommendations?.advanced?.distance || 0,
-              intensity: exercise.recommendations?.advanced?.intensity || 0,
-              incline: exercise.recommendations?.advanced?.incline || 0
+              duration: exercise.recommendations?.advanced?.duration || 7,
+              distance: exercise.recommendations?.advanced?.distance || 2,
+              intensity: exercise.recommendations?.advanced?.intensity || 1,
+              incline: exercise.recommendations?.advanced?.incline || 1
             }
           }
         };
@@ -459,30 +459,30 @@ router.post('/:id/share', auth, async (req, res, next) => {
         recommendations: {
           beginner: {
             weight: exercise.recommendations?.beginner?.weight || 0,
-            reps: exercise.recommendations?.beginner?.reps || 0,
+            reps: exercise.recommendations?.beginner?.reps || 8,
             sets: exercise.recommendations?.beginner?.sets || 3,
-            duration: exercise.recommendations?.beginner?.duration || 0,
-            distance: exercise.recommendations?.beginner?.distance || 0,
-            intensity: exercise.recommendations?.beginner?.intensity || 0,
-            incline: exercise.recommendations?.beginner?.incline || 0
+            duration: exercise.recommendations?.beginner?.duration || 7,
+            distance: exercise.recommendations?.beginner?.distance || 2,
+            intensity: exercise.recommendations?.beginner?.intensity || 1,
+            incline: exercise.recommendations?.beginner?.incline || 1
           },
           intermediate: {
             weight: exercise.recommendations?.intermediate?.weight || 0,
-            reps: exercise.recommendations?.intermediate?.reps || 0,
+            reps: exercise.recommendations?.intermediate?.reps || 8,
             sets: exercise.recommendations?.intermediate?.sets || 3,
-            duration: exercise.recommendations?.intermediate?.duration || 0,
-            distance: exercise.recommendations?.intermediate?.distance || 0,
-            intensity: exercise.recommendations?.intermediate?.intensity || 0,
-            incline: exercise.recommendations?.intermediate?.incline || 0
+            duration: exercise.recommendations?.intermediate?.duration || 7,
+            distance: exercise.recommendations?.intermediate?.distance || 2,
+            intensity: exercise.recommendations?.intermediate?.intensity || 1,
+            incline: exercise.recommendations?.intermediate?.incline || 1
           },
           advanced: {
             weight: exercise.recommendations?.advanced?.weight || 0,
-            reps: exercise.recommendations?.advanced?.reps || 0,
+            reps: exercise.recommendations?.advanced?.reps || 8,
             sets: exercise.recommendations?.advanced?.sets || 3,
-            duration: exercise.recommendations?.advanced?.duration || 0,
-            distance: exercise.recommendations?.advanced?.distance || 0,
-            intensity: exercise.recommendations?.advanced?.intensity || 0,
-            incline: exercise.recommendations?.advanced?.incline || 0
+            duration: exercise.recommendations?.advanced?.duration || 7,
+            distance: exercise.recommendations?.advanced?.distance || 2,
+            intensity: exercise.recommendations?.advanced?.intensity || 1,
+            incline: exercise.recommendations?.advanced?.incline || 1
           }
         }
       };
@@ -544,30 +544,30 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
           existingExercise.recommendations = {
             beginner: {
               weight: originalExercise.recommendations?.beginner?.weight || 0,
-              reps: originalExercise.recommendations?.beginner?.reps || 0,
+              reps: originalExercise.recommendations?.beginner?.reps || 8,
               sets: originalExercise.recommendations?.beginner?.sets || 3,
-              duration: originalExercise.recommendations?.beginner?.duration || 0,
-              distance: originalExercise.recommendations?.beginner?.distance || 0,
-              intensity: originalExercise.recommendations?.beginner?.intensity || 0,
-              incline: originalExercise.recommendations?.beginner?.incline || 0
+              duration: originalExercise.recommendations?.beginner?.duration || 7,
+              distance: originalExercise.recommendations?.beginner?.distance || 2,
+              intensity: originalExercise.recommendations?.beginner?.intensity || 1,
+              incline: originalExercise.recommendations?.beginner?.incline || 1
             },
             intermediate: {
               weight: originalExercise.recommendations?.intermediate?.weight || 0,
-              reps: originalExercise.recommendations?.intermediate?.reps || 0,
+              reps: originalExercise.recommendations?.intermediate?.reps || 10,
               sets: originalExercise.recommendations?.intermediate?.sets || 3,
-              duration: originalExercise.recommendations?.intermediate?.duration || 0,
-              distance: originalExercise.recommendations?.intermediate?.distance || 0,
-              intensity: originalExercise.recommendations?.intermediate?.intensity || 0,
-              incline: originalExercise.recommendations?.intermediate?.incline || 0
+              duration: originalExercise.recommendations?.intermediate?.duration || 7,
+              distance: originalExercise.recommendations?.intermediate?.distance || 2,
+              intensity: originalExercise.recommendations?.intermediate?.intensity || 1,
+              incline: originalExercise.recommendations?.intermediate?.incline || 1
             },
             advanced: {
               weight: originalExercise.recommendations?.advanced?.weight || 0,
-              reps: originalExercise.recommendations?.advanced?.reps || 0,
-              sets: originalExercise.recommendations?.advanced?.sets || 3,
-              duration: originalExercise.recommendations?.advanced?.duration || 0,
-              distance: originalExercise.recommendations?.advanced?.distance || 0,
-              intensity: originalExercise.recommendations?.advanced?.intensity || 0,
-              incline: originalExercise.recommendations?.advanced?.incline || 0
+              reps: originalExercise.recommendations?.advanced?.reps || 12,
+              sets: originalExercise.recommendations?.advanced?.sets || 4,
+              duration: originalExercise.recommendations?.advanced?.duration || 7,
+              distance: originalExercise.recommendations?.advanced?.distance || 2,
+              intensity: originalExercise.recommendations?.advanced?.intensity || 1,
+              incline: originalExercise.recommendations?.advanced?.incline || 1
             }
           };
           await existingExercise.save({ session });
@@ -602,7 +602,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
             duration: originalExercise.recommendations?.intermediate?.duration || 7,
             distance: originalExercise.recommendations?.intermediate?.distance || 2,
             intensity: originalExercise.recommendations?.intermediate?.intensity || 1,
-            incline: originalExercise.recommendations?.intermediate?.incline || 0
+            incline: originalExercise.recommendations?.intermediate?.incline || 1
           },
           advanced: {
             weight: originalExercise.recommendations?.advanced?.weight || 0,
@@ -611,7 +611,7 @@ router.post('/import/:shareId', auth, async (req, res, next) => {
             duration: originalExercise.recommendations?.advanced?.duration || 7,
             distance: originalExercise.recommendations?.advanced?.distance || 2,
             intensity: originalExercise.recommendations?.advanced?.intensity || 1,
-            incline: originalExercise.recommendations?.advanced?.incline || 0
+            incline: originalExercise.recommendations?.advanced?.incline || 1
           }
         },
         importedFrom: {
