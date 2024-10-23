@@ -12,12 +12,11 @@ const CustomError = require('../utils/customError');
 const auth = require('../middleware/auth');
 const { generateAccessToken, generateRefreshToken } = require('../utils/tokenUtils');
 const TokenBlacklist = require('../models/TokenBlacklist');
-
+const { sendVerificationEmail, sendWelcomeEmail, generateVerificationToken } = require('../utils/emailService');
 
 // Registration
 router.post('/register', async (req, res, next) => {
   try {
-    console.log('Received registration request:', req.body);
     const { username, email, password } = req.body;
 
     if (!username || !email || !password) {
@@ -26,31 +25,70 @@ router.post('/register', async (req, res, next) => {
 
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
-      console.log('User already exists:', existingUser.username);
       return next(new CustomError('User with this email or username already exists', 400));
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Create user with verification token
     const user = new User({
       username,
       email,
       password: hashedPassword,
-      hasSeenGuide: false
+      hasSeenGuide: false,
+      isEmailVerified: false
     });
 
-    await user.save();
-    console.log('User created successfully:', user.username);
+    // Generate and set verification token with proper expiry
+    const verificationToken = generateVerificationToken(user._id, user.email);
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    res.status(201).json({ message: 'User created successfully' });
+    await user.save();
+
+    // Send verification and welcome emails
+    await Promise.all([
+      sendVerificationEmail(email, verificationToken),
+      sendWelcomeEmail(email, username)
+    ]);
+
+    res.status(201).json({ 
+      message: 'Registration successful! Please check your email to verify your account.',
+      requiresVerification: true
+    });
   } catch (error) {
     console.error('Error registering user:', error);
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => err.message);
-      return next(new CustomError(`Validation error: ${validationErrors.join(', ')}`, 400));
-    }
     next(new CustomError('Error registering user: ' + error.message, 500));
+  }
+});
+
+// Email verification
+router.get('/verify-email/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const decoded = jwt.verify(token, process.env.EMAIL_VERIFICATION_SECRET);
+    
+    const user = await User.findOne({
+      _id: decoded.userId,
+      email: decoded.email,
+      emailVerificationExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return next(new CustomError('Invalid or expired verification token', 400));
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Email verified successfully! You can now log in.' });
+  } catch (error) {
+    console.error('Error verifying email:', error);
+    next(new CustomError('Error verifying email: ' + error.message, 500));
   }
 });
 
@@ -75,7 +113,7 @@ router.post('/login', async (req, res, next) => {
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
-    // Clear all existing refresh tokens and add the new one
+    // Clear old refresh tokens and add the new one
     user.activeRefreshTokens = [];
     user.addRefreshToken(refreshToken);
     await user.save();
@@ -100,7 +138,7 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-// Refresh token
+// Token refresh
 router.post('/refresh-token', async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
@@ -108,6 +146,12 @@ router.post('/refresh-token', async (req, res, next) => {
 
     if (!refreshToken) {
       return res.status(400).json({ message: 'Refresh token is required' });
+    }
+
+    // Check if token is blacklisted
+    const isBlacklisted = await TokenBlacklist.findOne({ token: refreshToken });
+    if (isBlacklisted) {
+      return res.status(401).json({ message: 'Token has been invalidated' });
     }
 
     let decoded;
@@ -120,13 +164,12 @@ router.post('/refresh-token', async (req, res, next) => {
     }
 
     const user = await User.findById(decoded.id);
-
     if (!user) {
       console.log('User not found for id:', decoded.id);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if the token is in the active list
+    // Verify token is in active list
     const tokenIndex = user.activeRefreshTokens.indexOf(refreshToken);
     if (tokenIndex === -1) {
       console.log('Refresh token not found in active tokens');
@@ -137,13 +180,16 @@ router.post('/refresh-token', async (req, res, next) => {
     const accessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
-    // Remove the old refresh token
+    // Update refresh tokens
     user.activeRefreshTokens.splice(tokenIndex, 1);
-    
-    // Add the new refresh token
     user.addRefreshToken(newRefreshToken);
-
     await user.save();
+
+    // Add old refresh token to blacklist
+    await TokenBlacklist.create({ 
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    });
 
     console.log('New tokens generated:', { accessToken, newRefreshToken });
     console.log('Active refresh tokens:', user.activeRefreshTokens);
@@ -170,11 +216,19 @@ router.post('/logout', auth, async (req, res, next) => {
     const refreshToken = req.body.refreshToken;
     if (refreshToken) {
       user.removeRefreshToken(refreshToken);
+      // Add refresh token to blacklist with proper expiry
+      await TokenBlacklist.create({ 
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+      });
     }
 
     // Blacklist the current access token
     const accessToken = req.header('x-auth-token');
-    await TokenBlacklist.create({ token: accessToken });
+    await TokenBlacklist.create({ 
+      token: accessToken,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+    });
 
     await user.save();
 
@@ -184,7 +238,7 @@ router.post('/logout', auth, async (req, res, next) => {
   }
 });
 
-// Get current user route
+// Get current user
 router.get('/user', auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
@@ -215,7 +269,6 @@ router.put('/user', auth, async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
 
-    // Check if username is already taken
     if (username !== user.username) {
       const existingUser = await User.findOne({ username });
       if (existingUser) {
@@ -223,7 +276,6 @@ router.put('/user', auth, async (req, res, next) => {
       }
     }
 
-    // Check if email is already taken
     if (email !== user.email) {
       const existingUser = await User.findOne({ email });
       if (existingUser) {
@@ -287,17 +339,13 @@ router.delete('/user', auth, async (req, res, next) => {
       return next(new CustomError('User not found', 404));
     }
 
-    // Delete user's workouts
-    await Workout.deleteMany({ user: req.user.id });
-
-    // Delete user's workout plans
-    await WorkoutPlan.deleteMany({ user: req.user.id });
-
-    // Delete user's exercises
-    await Exercise.deleteMany({ user: req.user.id });
-
-    // Delete the user
-    await User.findByIdAndDelete(req.user.id);
+    // Delete all user data
+    await Promise.all([
+      Workout.deleteMany({ user: req.user.id }),
+      WorkoutPlan.deleteMany({ user: req.user.id }),
+      Exercise.deleteMany({ user: req.user.id }),
+      User.findByIdAndDelete(req.user.id)
+    ]);
 
     res.json({ message: 'User account and associated data deleted successfully' });
   } catch (error) {

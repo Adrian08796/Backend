@@ -1,0 +1,57 @@
+<!-- templates/welcomeEmail.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .button {
+      background-color: #45FFCA;
+      color: #1F2937;
+      padding: 12px 24px;
+      text-decoration: none;
+      border-radius: 5px;
+      display: inline-block;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    .container {
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .feature-list {
+      padding-left: 20px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome to Level Up!</h1>
+    <p>Hi {{username}},</p>
+    <p>Thank you for joining Level Up! We're excited to help you achieve your fitness goals.</p>
+    
+    <h2>Getting Started</h2>
+    <ul class="feature-list">
+      <li>Create your first workout plan</li>
+      <li>Browse our exercise library</li>
+      <li>Track your progress</li>
+      <li>Set your fitness goals</li>
+    </ul>
+
+    <a href="{{guideLink}}" class="button">View Getting Started Guide</a>
+
+    <p>If you have any questions or need assistance, our support team is here to help!</p>
+    
+    <p>Best regards,<br>The Level Up Team</p>
+  </div>
+</body>
+</html>
