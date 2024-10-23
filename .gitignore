@@ -166,3 +166,4 @@ lerna-debug.log*
 
 codebase.md
 .aidigestignore
+.environment
