@@ -1,57 +1,43 @@
-<!-- templates/welcomeEmail.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .button {
-      background-color: #45FFCA;
-      color: #1F2937;
-      padding: 12px 24px;
-      text-decoration: none;
-      border-radius: 5px;
-      display: inline-block;
-      margin: 20px 0;
-      font-weight: bold;
-    }
-    .container {
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 20px 0;
-    }
-    .feature-list {
-      padding-left: 20px;
-      margin: 20px 0;
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Level Up</title>
 </head>
-<body>
-  <div class="container">
-    <h1>Welcome to Level Up!</h1>
-    <p>Hi {{username}},</p>
-    <p>Thank you for joining Level Up! We're excited to help you achieve your fitness goals.</p>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+    <h1 style="color: #1F2937; margin-bottom: 20px;">Welcome to Level Up!</h1>
+    <p style="margin-bottom: 15px;">Hi {{username}},</p>
+    <p style="margin-bottom: 20px;">Thank you for joining Level Up! We're excited to help you achieve your fitness goals.</p>
     
-    <h2>Getting Started</h2>
-    <ul class="feature-list">
-      <li>Create your first workout plan</li>
-      <li>Browse our exercise library</li>
-      <li>Track your progress</li>
-      <li>Set your fitness goals</li>
+    <h2 style="color: #1F2937; margin: 20px 0;">Getting Started</h2>
+    <ul style="list-style-type: none; padding-left: 0; margin: 20px 0;">
+      <li style="margin-bottom: 10px;">✨ Create your first workout plan</li>
+      <li style="margin-bottom: 10px;">💪 Browse our exercise library</li>
+      <li style="margin-bottom: 10px;">📊 Track your progress</li>
+      <li style="margin-bottom: 10px;">🎯 Set your fitness goals</li>
     </ul>
 
-    <a href="{{guideLink}}" class="button">View Getting Started Guide</a>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{guideLink}}" 
+         style="background-color: #45FFCA; 
+                color: #1F2937; 
+                padding: 12px 24px; 
+                text-decoration: none; 
+                border-radius: 5px; 
+                font-weight: bold;
+                display: inline-block;">
+        View Getting Started Guide
+      </a>
+    </div>
 
-    <p>If you have any questions or need assistance, our support team is here to help!</p>
+    <p style="margin-top: 20px;">If you have any questions or need assistance, our support team is here to help!</p>
     
-    <p>Best regards,<br>The Level Up Team</p>
+    <p style="margin-top: 30px;">
+      Best regards,<br>
+      The Level Up Team
+    </p>
   </div>
 </body>
 </html>

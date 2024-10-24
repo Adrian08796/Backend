@@ -1,45 +1,36 @@
-<!-- templates/verificationEmail.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .button {
-      background-color: #45FFCA;
-      color: #1F2937;
-      padding: 12px 24px;
-      text-decoration: none;
-      border-radius: 5px;
-      display: inline-block;
-      margin: 20px 0;
-      font-weight: bold;
-    }
-    .container {
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 20px 0;
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email</title>
 </head>
-<body>
-  <div class="container">
-    <h1>Verify Your Email Address</h1>
-    <p>Welcome to Level Up! Please verify your email address to start your fitness journey.</p>
-    <a href="{{verificationLink}}" class="button">Verify Email</a>
-    <p>Or click this link if the button doesn't work:<br>
-    <a href="{{verificationLink}}">{{verificationLink}}</a></p>
-    <p>This verification link will expire in 24 hours.</p>
-    <p>If you didn't create an account with Level Up, please ignore this email.</p>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+    <h1 style="color: #1F2937; margin-bottom: 20px;">Verify Your Email Address</h1>
+    <p style="margin-bottom: 20px;">Welcome to Level Up! Please verify your email address to start your fitness journey.</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{verificationLink}}" 
+         style="background-color: #45FFCA; 
+                color: #1F2937; 
+                padding: 12px 24px; 
+                text-decoration: none; 
+                border-radius: 5px; 
+                font-weight: bold;
+                display: inline-block;">
+        Verify Email
+      </a>
+    </div>
+
+    <p style="margin-top: 20px;">Or click this link if the button doesn't work:<br>
+    <a href="{{verificationLink}}" style="color: #45FFCA; text-decoration: underline;">{{verificationLink}}</a></p>
+    
+    <p style="margin-top: 20px; color: #666;">This verification link will expire in 24 hours.</p>
+    <p style="color: #666;">If you didn't create an account with Level Up, please ignore this email.</p>
   </div>
-  <div style="margin-top: 20px; font-size: 12px; color: #666;">
+  
+  <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
     <p>This is an automated message, please do not reply.</p>
   </div>
 </body>
