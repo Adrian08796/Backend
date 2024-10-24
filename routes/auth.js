@@ -64,31 +64,40 @@ router.post('/register', async (req, res, next) => {
 });
 
 // Email verification
-router.get('/verify-email/:token', async (req, res, next) => {
+router.post('/resend-verification', async (req, res, next) => {
   try {
-    const { token } = req.params;
-
-    const decoded = jwt.verify(token, process.env.EMAIL_VERIFICATION_SECRET);
-    
-    const user = await User.findOne({
-      _id: decoded.userId,
-      email: decoded.email,
-      emailVerificationExpires: { $gt: Date.now() }
-    });
+    const { email } = req.body;
+    const user = await User.findOne({ email });
 
     if (!user) {
-      return next(new CustomError('Invalid or expired verification token', 400));
+      return next(new CustomError('No account found with this email', 404));
     }
 
-    user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
+    if (user.isEmailVerified) {
+      return next(new CustomError('Email is already verified', 400));
+    }
+
+    // Check if too many verification emails have been sent recently
+    const lastResendTime = user.emailVerificationExpires 
+      ? new Date(user.emailVerificationExpires).getTime() - (24 * 60 * 60 * 1000)
+      : 0;
+    
+    if (Date.now() - lastResendTime < 5 * 60 * 1000) { // 5 minutes cooldown
+      return next(new CustomError('Please wait 5 minutes before requesting another verification email', 429));
+    }
+
+    // Generate new verification token
+    const verificationToken = generateVerificationToken(user._id, user.email);
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await user.save();
 
-    res.json({ message: 'Email verified successfully! You can now log in.' });
+    // Send new verification email
+    await sendVerificationEmail(user.email, verificationToken);
+
+    res.json({ message: 'Verification email sent successfully' });
   } catch (error) {
-    console.error('Error verifying email:', error);
-    next(new CustomError('Error verifying email: ' + error.message, 500));
+    next(new CustomError('Error sending verification email: ' + error.message, 500));
   }
 });
 
@@ -102,6 +111,20 @@ router.post('/login', async (req, res, next) => {
     if (!user) {
       console.log('Invalid credentials: User not found');
       return next(new CustomError('Invalid credentials', 400));
+    }
+
+    // Check if email is verified before allowing login
+    if (!user.isEmailVerified) {
+      // Generate new verification token
+      const verificationToken = generateVerificationToken(user._id, user.email);
+      user.emailVerificationToken = verificationToken;
+      user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      await user.save();
+
+      // Resend verification email
+      await sendVerificationEmail(user.email, verificationToken);
+
+      return next(new CustomError('Please verify your email before logging in. A new verification email has been sent.', 403));
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
