@@ -14,6 +14,53 @@ const { generateAccessToken, generateRefreshToken } = require('../utils/tokenUti
 const TokenBlacklist = require('../models/TokenBlacklist');
 const { sendVerificationEmail, sendWelcomeEmail, generateVerificationToken } = require('../utils/emailService');
 
+// Add the verification route - PUT THIS AT THE TOP OF YOUR ROUTES
+router.get('/verify-email/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    console.log('Verifying token:', token);
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.EMAIL_VERIFICATION_SECRET);
+    } catch (jwtError) {
+      console.error('JWT verification failed:', jwtError);
+      return res.status(400).json({ 
+        message: jwtError.name === 'TokenExpiredError' 
+          ? 'Verification link has expired' 
+          : 'Invalid verification token'
+      });
+    }
+
+    const user = await User.findOne({
+      _id: decoded.userId,
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      console.log('User not found or token mismatch');
+      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    }
+
+    // Update user verification status
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    console.log('User verified successfully:', user.email);
+    res.json({ 
+      message: 'Email verified successfully! You can now log in.',
+      email: user.email
+    });
+  } catch (error) {
+    console.error('Verification error:', error);
+    next(new CustomError('Error verifying email: ' + error.message, 500));
+  }
+});
+
+
 // Registration
 router.post('/register', async (req, res, next) => {
   try {
@@ -23,6 +70,7 @@ router.post('/register', async (req, res, next) => {
       return next(new CustomError('All fields are required', 400));
     }
 
+    // Check for existing user
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return next(new CustomError('User with this email or username already exists', 400));
@@ -31,7 +79,7 @@ router.post('/register', async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user with verification token
+    // Create user without verification first
     const user = new User({
       username,
       email,
@@ -40,25 +88,35 @@ router.post('/register', async (req, res, next) => {
       isEmailVerified: false
     });
 
-    // Generate and set verification token with proper expiry
+    // Generate verification token after user creation
     const verificationToken = generateVerificationToken(user._id, user.email);
+    
+    // Set verification token and expiry
     user.emailVerificationToken = verificationToken;
-    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await user.save();
+    console.log('User created with verification token:', verificationToken);
 
-    // Send verification and welcome emails
-    await Promise.all([
-      sendVerificationEmail(email, verificationToken),
-      sendWelcomeEmail(email, username)
-    ]);
+    try {
+      // Send verification email first
+      await sendVerificationEmail(email, verificationToken);
+      console.log('Verification email sent successfully');
+      
+      // Send welcome email after verification email
+      await sendWelcomeEmail(email, username);
+      console.log('Welcome email sent successfully');
+    } catch (emailError) {
+      console.error('Error sending emails:', emailError);
+      // Don't fail registration if emails fail
+    }
 
     res.status(201).json({ 
       message: 'Registration successful! Please check your email to verify your account.',
       requiresVerification: true
     });
   } catch (error) {
-    console.error('Error registering user:', error);
+    console.error('Registration error:', error);
     next(new CustomError('Error registering user: ' + error.message, 500));
   }
 });
@@ -67,8 +125,9 @@ router.post('/register', async (req, res, next) => {
 router.post('/resend-verification', async (req, res, next) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    console.log('Resending verification email for:', email);
 
+    const user = await User.findOne({ email });
     if (!user) {
       return next(new CustomError('No account found with this email', 404));
     }
@@ -77,12 +136,12 @@ router.post('/resend-verification', async (req, res, next) => {
       return next(new CustomError('Email is already verified', 400));
     }
 
-    // Check if too many verification emails have been sent recently
-    const lastResendTime = user.emailVerificationExpires 
+    // Check cooldown period
+    const lastSentTime = user.emailVerificationExpires 
       ? new Date(user.emailVerificationExpires).getTime() - (24 * 60 * 60 * 1000)
       : 0;
     
-    if (Date.now() - lastResendTime < 5 * 60 * 1000) { // 5 minutes cooldown
+    if (Date.now() - lastSentTime < 5 * 60 * 1000) {
       return next(new CustomError('Please wait 5 minutes before requesting another verification email', 429));
     }
 
@@ -90,13 +149,19 @@ router.post('/resend-verification', async (req, res, next) => {
     const verificationToken = generateVerificationToken(user._id, user.email);
     user.emailVerificationToken = verificationToken;
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
     await user.save();
+    console.log('New verification token generated:', verificationToken);
 
-    // Send new verification email
     await sendVerificationEmail(user.email, verificationToken);
+    console.log('Verification email resent successfully');
 
-    res.json({ message: 'Verification email sent successfully' });
+    res.json({ 
+      message: 'Verification email sent successfully',
+      email: user.email
+    });
   } catch (error) {
+    console.error('Error resending verification:', error);
     next(new CustomError('Error sending verification email: ' + error.message, 500));
   }
 });
