@@ -1,3 +1,4 @@
+<!-- templates/verificationEmail.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -11,7 +12,7 @@
     <p style="margin-bottom: 20px;">Welcome to Level Up! Please verify your email address to start your fitness journey.</p>
     
     <div style="text-align: center; margin: 30px 0;">
-      <a href="{{frontendUrl}}/verify-email/{{token}}" 
+      <a href="{{verificationUrl}}" 
          style="background-color: #45FFCA; 
                 color: #1F2937; 
                 padding: 12px 24px; 
@@ -24,7 +25,7 @@
     </div>
 
     <p style="margin-top: 20px;">Or click this link if the button doesn't work:<br>
-    <a href="{{frontendUrl}}/verify-email/{{token}}" style="color: #45FFCA; text-decoration: underline;">{{frontendUrl}}/verify-email/{{token}}</a></p>
+    <a href="{{verificationUrl}}" style="color: #45FFCA; text-decoration: underline;">{{verificationUrl}}</a></p>
     
     <p style="margin-top: 20px; color: #666;">This verification link will expire in 24 hours.</p>
     <p style="color: #666;">If you didn't create an account with Level Up, please ignore this email.</p>

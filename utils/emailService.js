@@ -1,10 +1,41 @@
 // utils/emailService.js
 
-// utils/emailService.js
-
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const fs = require('fs').promises;
+const path = require('path');
 const Handlebars = require('handlebars');
+
+// Template paths
+const templatePath = path.join(__dirname, '../templates');
+let emailTemplates = {
+  verification: null,
+  welcome: null
+};
+
+// Load and compile templates
+const loadEmailTemplates = async () => {
+  try {
+    const [verificationTemplate, welcomeTemplate] = await Promise.all([
+      fs.readFile(path.join(templatePath, 'verificationEmail.html'), 'utf8'),
+      fs.readFile(path.join(templatePath, 'welcomeEmail.html'), 'utf8')
+    ]);
+
+    // Compile templates with Handlebars
+    emailTemplates.verification = Handlebars.compile(verificationTemplate);
+    emailTemplates.welcome = Handlebars.compile(welcomeTemplate);
+
+    console.log('Email templates loaded and compiled successfully');
+  } catch (error) {
+    console.error('Error loading email templates:', error);
+    throw error;
+  }
+};
+
+// Initialize templates
+loadEmailTemplates().catch(error => {
+  console.error('Failed to load email templates:', error);
+});
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -15,38 +46,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD
   }
 });
-
-// Welcome email template
-const welcomeEmailTemplate = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to Level Up!</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #f9f9f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
-    <h1 style="color: #1F2937; margin-bottom: 20px;">Welcome to Level Up!</h1>
-    <p style="margin-bottom: 20px;">Hi {{username}},</p>
-    <p>Thank you for joining Level Up! We're excited to help you achieve your fitness goals.</p>
-    <p>You can now access your account and start your fitness journey.</p>
-    <div style="margin-top: 30px;">
-      <a href="{{loginUrl}}" 
-         style="background-color: #45FFCA; 
-                color: #1F2937; 
-                padding: 12px 24px; 
-                text-decoration: none; 
-                border-radius: 5px; 
-                font-weight: bold;
-                display: inline-block;">
-        Get Started
-      </a>
-    </div>
-  </div>
-</body>
-</html>
-`;
 
 const generateVerificationToken = (userId, email) => {
   const token = jwt.sign(
@@ -64,19 +63,26 @@ const generateVerificationToken = (userId, email) => {
 
 const sendVerificationEmail = async (email, token) => {
   try {
+    if (!emailTemplates.verification) {
+      await loadEmailTemplates();
+    }
+
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
     console.log('Sending verification email to:', email);
     console.log('Verification URL:', verificationUrl);
+
+    // Generate email content using template
+    const htmlContent = emailTemplates.verification({
+      verificationUrl,
+      frontendUrl: process.env.FRONTEND_URL,
+      token
+    });
 
     const info = await transporter.sendMail({
       from: `"Level Up" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Verify Your Email - Level Up',
-      html: `
-        <p>Please verify your email by clicking the link below:</p>
-        <a href="${verificationUrl}">Verify Email</a>
-        <p>This link will expire in 24 hours.</p>
-      `,
+      html: htmlContent,
       text: `Please verify your email by visiting: ${verificationUrl}\nThis link will expire in 24 hours.`
     });
 
@@ -90,21 +96,26 @@ const sendVerificationEmail = async (email, token) => {
 
 const sendWelcomeEmail = async (email, username) => {
   try {
-    console.log('Sending welcome email to:', email);
-    const template = Handlebars.compile(welcomeEmailTemplate);
-    const loginUrl = `${process.env.FRONTEND_URL}/login`;
+    if (!emailTemplates.welcome) {
+      await loadEmailTemplates();
+    }
 
-    const html = template({
+    console.log('Sending welcome email to:', email);
+    const guideLink = `${process.env.FRONTEND_URL}/guide`;
+
+    // Generate email content using template
+    const htmlContent = emailTemplates.welcome({
       username,
-      loginUrl
+      guideLink,
+      frontendUrl: process.env.FRONTEND_URL
     });
 
     const info = await transporter.sendMail({
       from: `"Level Up" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Welcome to Level Up!',
-      html,
-      text: `Welcome to Level Up, ${username}! You can now log in at: ${loginUrl}`
+      html: htmlContent,
+      text: `Welcome to Level Up, ${username}! Check out our getting started guide: ${guideLink}`
     });
 
     console.log('Welcome email sent:', info.messageId);
@@ -115,8 +126,20 @@ const sendWelcomeEmail = async (email, username) => {
   }
 };
 
+// Add a template reload function for development
+const reloadTemplates = async () => {
+  try {
+    await loadEmailTemplates();
+    console.log('Email templates reloaded successfully');
+  } catch (error) {
+    console.error('Error reloading email templates:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
-  generateVerificationToken
+  generateVerificationToken,
+  reloadTemplates // Export for development use
 };
