@@ -99,20 +99,26 @@ const createTransporter = () => {
 
 const transporter = createTransporter();
 
-// Generate verification token
+// Generate verification token with proper secret
 const generateVerificationToken = (userId, email) => {
-  return jwt.sign(
-    { 
-      userId, 
-      email,
-      type: 'email-verification'
-    },
-    process.env.EMAIL_VERIFICATION_SECRET,
-    { 
-      expiresIn: '24h',
-      algorithm: 'HS256'
-    }
-  );
+  try {
+    return jwt.sign(
+      { 
+        userId, 
+        email,
+        type: 'email-verification',
+        timestamp: Date.now() // Add timestamp for additional security
+      },
+      process.env.EMAIL_VERIFICATION_SECRET,
+      { 
+        expiresIn: '24h',
+        algorithm: 'HS256'
+      }
+    );
+  } catch (error) {
+    console.error('Error generating verification token:', error);
+    throw error;
+  }
 };
 
 // Send email with retry logic
@@ -131,31 +137,42 @@ const sendEmail = async (options, retries = 3) => {
   }
 };
 
-// Send verification email
+// Send verification email with proper link construction
 const sendVerificationEmail = async (email, token) => {
-  const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${token}`;
-  
-  // Generate email content using template
-  const htmlContent = emailTemplates.verification({
-    verificationLink,
-    appName: 'Level Up',
-    supportEmail: process.env.EMAIL_USER
-  });
+  try {
+    // Ensure proper URL construction
+    const verificationLink = `${process.env.FRONTEND_URL}/verify-email/${token}`;
+    
+    // Generate email content using template
+    const htmlContent = emailTemplates.verification({
+      verificationLink,
+      appName: 'Level Up',
+      supportEmail: process.env.EMAIL_USER,
+      expiryHours: 24 // Token expires in 24 hours
+    });
 
-  const mailOptions = {
-    from: `"Level Up" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'Verify Your Email - Level Up',
-    html: htmlContent,
-    text: `Please verify your email by clicking this link: ${verificationLink}`,
-    headers: {
-      'X-Priority': '1',
-      'X-MSMail-Priority': 'High'
-    }
-  };
+    const mailOptions = {
+      from: `"Level Up" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verify Your Email - Level Up',
+      html: htmlContent,
+      text: `Please verify your email by clicking this link: ${verificationLink}\nThis link will expire in 24 hours.`,
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High'
+      }
+    };
 
-  return sendEmail(mailOptions);
+    // Send email with retry logic
+    const result = await sendEmail(mailOptions, 3);
+    console.log('Verification email sent:', result.messageId);
+    return result;
+  } catch (error) {
+    console.error('Error sending verification email:', error);
+    throw error;
+  }
 };
+
 
 // Send welcome email
 const sendWelcomeEmail = async (email, username) => {
@@ -181,21 +198,27 @@ const sendWelcomeEmail = async (email, username) => {
 };
 
 // Resend verification email
+// Resend verification email with proper error handling
 const resendVerificationEmail = async (user) => {
   if (!user.email) {
     throw new Error('User email not found');
   }
 
-  // Generate new verification token
-  const token = generateVerificationToken(user._id, user.email);
-  
-  // Update user's verification token
-  user.emailVerificationToken = token;
-  user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  await user.save();
+  try {
+    // Generate new verification token
+    const token = generateVerificationToken(user._id, user.email);
+    
+    // Update user's verification token in database
+    user.emailVerificationToken = token;
+    user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save();
 
-  // Send new verification email
-  return sendVerificationEmail(user.email, token);
+    // Send new verification email
+    return await sendVerificationEmail(user.email, token);
+  } catch (error) {
+    console.error('Error resending verification email:', error);
+    throw error;
+  }
 };
 
 module.exports = {

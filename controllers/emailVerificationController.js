@@ -1,5 +1,6 @@
 // controllers/emailVerificationController.js
 
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { resendVerificationEmail } = require('../utils/emailService');
 const CustomError = require('../utils/customError');
@@ -15,9 +16,11 @@ const resendLimiter = rateLimit({
 const verifyEmail = async (req, res, next) => {
   try {
     const { token } = req.params;
-
+    
+    // Verify token using EMAIL_VERIFICATION_SECRET
     const decoded = jwt.verify(token, process.env.EMAIL_VERIFICATION_SECRET);
     
+    // Find user with matching token that hasn't expired
     const user = await User.findOne({
       _id: decoded.userId,
       email: decoded.email,
@@ -26,9 +29,10 @@ const verifyEmail = async (req, res, next) => {
     });
 
     if (!user) {
-      return next(new CustomError('Invalid or expired verification token', 400));
+      throw new CustomError('Invalid or expired verification token', 400);
     }
 
+    // Update user verification status
     user.isEmailVerified = true;
     user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
@@ -39,6 +43,7 @@ const verifyEmail = async (req, res, next) => {
       email: user.email
     });
   } catch (error) {
+    console.error('Verification error:', error);
     if (error.name === 'TokenExpiredError') {
       return next(new CustomError('Verification link has expired', 400));
     }
@@ -52,8 +57,8 @@ const verifyEmail = async (req, res, next) => {
 const resendVerification = async (req, res, next) => {
   try {
     const { email } = req.body;
-
     const user = await User.findOne({ email });
+
     if (!user) {
       return next(new CustomError('No account found with this email', 404));
     }
@@ -62,12 +67,12 @@ const resendVerification = async (req, res, next) => {
       return next(new CustomError('Email is already verified', 400));
     }
 
-    // Check if we can resend (minimum 5 minutes between attempts)
-    const lastSent = user.emailVerificationExpires 
+    // Check cooldown period
+    const lastSentTime = user.emailVerificationExpires 
       ? new Date(user.emailVerificationExpires).getTime() - (24 * 60 * 60 * 1000)
       : 0;
     
-    if (Date.now() - lastSent < 5 * 60 * 1000) {
+    if (Date.now() - lastSentTime < 5 * 60 * 1000) { // 5 minutes cooldown
       return next(new CustomError('Please wait 5 minutes before requesting another verification email', 429));
     }
 

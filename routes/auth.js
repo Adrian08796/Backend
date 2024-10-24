@@ -113,18 +113,34 @@ router.post('/login', async (req, res, next) => {
       return next(new CustomError('Invalid credentials', 400));
     }
 
-    // Check if email is verified before allowing login
+    // Check email verification status first
     if (!user.isEmailVerified) {
-      // Generate new verification token
-      const verificationToken = generateVerificationToken(user._id, user.email);
+      // Generate and set new verification token
+      const verificationToken = jwt.sign(
+        { 
+          userId: user._id,
+          email: user.email,
+          type: 'email-verification'
+        },
+        process.env.EMAIL_VERIFICATION_SECRET,
+        { expiresIn: '24h' }
+      );
+      
       user.emailVerificationToken = verificationToken;
-      user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await user.save();
 
-      // Resend verification email
-      await sendVerificationEmail(user.email, verificationToken);
+      // Send new verification email
+      try {
+        await sendVerificationEmail(user.email, verificationToken);
+      } catch (emailError) {
+        console.error('Error sending verification email:', emailError);
+      }
 
-      return next(new CustomError('Please verify your email before logging in. A new verification email has been sent.', 403));
+      return res.status(403).json({
+        message: 'Please verify your email before logging in. A new verification email has been sent.',
+        requiresVerification: true
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
