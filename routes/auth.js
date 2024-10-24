@@ -23,6 +23,7 @@ router.get('/verify-email/:token', async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.EMAIL_VERIFICATION_SECRET);
+      console.log('Decoded token:', decoded);
     } catch (jwtError) {
       console.error('JWT verification failed:', jwtError);
       return res.status(400).json({ 
@@ -32,15 +33,18 @@ router.get('/verify-email/:token', async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({
-      _id: decoded.userId,
-      emailVerificationToken: token,
-      emailVerificationExpires: { $gt: Date.now() }
-    });
+    // Find user without checking token match first
+    const user = await User.findById(decoded.userId);
+    console.log('Found user:', user);
 
     if (!user) {
-      console.log('User not found or token mismatch');
-      return res.status(400).json({ message: 'Invalid or expired verification token' });
+      console.log('User not found');
+      return res.status(400).json({ message: 'User not found' });
+    }
+
+    if (user.isEmailVerified) {
+      console.log('User already verified');
+      return res.status(400).json({ message: 'Email is already verified' });
     }
 
     // Update user verification status
@@ -48,6 +52,15 @@ router.get('/verify-email/:token', async (req, res, next) => {
     user.emailVerificationToken = undefined;
     user.emailVerificationExpires = undefined;
     await user.save();
+
+    // Send welcome email after successful verification
+    try {
+      await sendWelcomeEmail(user.email, user.username);
+      console.log('Welcome email sent after verification');
+    } catch (emailError) {
+      console.error('Error sending welcome email:', emailError);
+      // Continue even if welcome email fails
+    }
 
     console.log('User verified successfully:', user.email);
     res.json({ 
@@ -70,7 +83,6 @@ router.post('/register', async (req, res, next) => {
       return next(new CustomError('All fields are required', 400));
     }
 
-    // Check for existing user
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return next(new CustomError('User with this email or username already exists', 400));
@@ -79,7 +91,7 @@ router.post('/register', async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user without verification first
+    // Create user
     const user = new User({
       username,
       email,
@@ -88,27 +100,21 @@ router.post('/register', async (req, res, next) => {
       isEmailVerified: false
     });
 
-    // Generate verification token after user creation
+    // Generate verification token
     const verificationToken = generateVerificationToken(user._id, user.email);
-    
-    // Set verification token and expiry
     user.emailVerificationToken = verificationToken;
     user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await user.save();
-    console.log('User created with verification token:', verificationToken);
+    console.log('User created:', user._id);
 
+    // Send only verification email during registration
     try {
-      // Send verification email first
       await sendVerificationEmail(email, verificationToken);
-      console.log('Verification email sent successfully');
-      
-      // Send welcome email after verification email
-      await sendWelcomeEmail(email, username);
-      console.log('Welcome email sent successfully');
+      console.log('Verification email sent during registration');
     } catch (emailError) {
-      console.error('Error sending emails:', emailError);
-      // Don't fail registration if emails fail
+      console.error('Error sending verification email:', emailError);
+      // Continue even if email sending fails
     }
 
     res.status(201).json({ 
