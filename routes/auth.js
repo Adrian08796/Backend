@@ -463,4 +463,71 @@ router.delete('/user', auth, async (req, res, next) => {
   }
 });
 
+// Forgot password route
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return next(new CustomError('User not found with this email', 404));
+    }
+
+    // Generate password reset token
+    const resetToken = jwt.sign(
+      { userId: user._id },
+      process.env.PASSWORD_RESET_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Save token and expiry to user
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = Date.now() + 3600000; // 1 hour
+    await user.save();
+
+    // Send password reset email
+    await sendPasswordResetEmail(email, resetToken);
+
+    res.json({ message: 'Password reset email sent' });
+  } catch (error) {
+    next(new CustomError('Error sending password reset email', 500));
+  }
+});
+
+// Reset password route
+router.post('/reset-password/:token', async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.PASSWORD_RESET_SECRET);
+
+    // Find user
+    const user = await User.findOne({
+      _id: decoded.userId,
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return next(new CustomError('Invalid or expired reset token', 400));
+    }
+
+    // Update password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    res.json({ message: 'Password reset successful' });
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return next(new CustomError('Reset token has expired', 400));
+    }
+    next(new CustomError('Error resetting password', 500));
+  }
+});
+
 module.exports = router;

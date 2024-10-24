@@ -16,19 +16,19 @@ let emailTemplates = {
 // Load and compile templates
 const loadEmailTemplates = async () => {
   try {
-    const [verificationTemplate, welcomeTemplate] = await Promise.all([
+    const [verificationTemplate, welcomeTemplate, passwordResetTemplate] = await Promise.all([
       fs.readFile(path.join(templatePath, 'verificationEmail.html'), 'utf8'),
-      fs.readFile(path.join(templatePath, 'welcomeEmail.html'), 'utf8')
+      fs.readFile(path.join(templatePath, 'welcomeEmail.html'), 'utf8'),
+      fs.readFile(path.join(templatePath, 'passwordResetEmail.html'), 'utf8')
     ]);
 
-    // Compile templates with Handlebars
     emailTemplates.verification = Handlebars.compile(verificationTemplate);
     emailTemplates.welcome = Handlebars.compile(welcomeTemplate);
+    emailTemplates.passwordReset = Handlebars.compile(passwordResetTemplate);
 
-    console.log('Email templates loaded and compiled successfully');
+    console.log('Email templates loaded successfully');
   } catch (error) {
     console.error('Error loading email templates:', error);
-    throw error;
   }
 };
 
@@ -137,9 +137,41 @@ const reloadTemplates = async () => {
   }
 };
 
+// Add new function for password reset
+const sendPasswordResetEmail = async (email, token) => {
+  try {
+    if (!emailTemplates.passwordReset) {
+      await loadEmailTemplates();
+    }
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+    console.log('Sending password reset email to:', email);
+    console.log('Reset URL:', resetUrl);
+
+    const htmlContent = emailTemplates.passwordReset({
+      resetUrl
+    });
+
+    const info = await transporter.sendMail({
+      from: `"Level Up" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Reset Your Password - Level Up',
+      html: htmlContent,
+      text: `Reset your password by visiting: ${resetUrl}\nThis link will expire in 1 hour.`
+    });
+
+    console.log('Password reset email sent:', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
   generateVerificationToken,
-  reloadTemplates // Export for development use
+  reloadTemplates,
+  sendPasswordResetEmail
 };
